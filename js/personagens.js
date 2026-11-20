@@ -5,6 +5,8 @@
 // baixo: calca, short, pantalona, saia | sapato: tenis, sapato, chinelo
 // mobilidade: cadeira, muletas, bengala, protese
 
+import { PELES, CABELOS } from './paleta.js';
+
 export const ELENCO = {
   bernardo: {
     nome: 'Bernardo', papel: 'Aniversariante',
@@ -141,3 +143,75 @@ export const AVATARES = [
   { pele: 0, cabelo: 'curto', corCabelo: 'preto', oculos: 'quadrado', blusa: 'botao', corBlusa: '#f4f1ea', baixo: 'calca', corBaixo: '#c9b48a', sapato: 'sapato', corSapato: '#5a3a24', altura: 'alto', corpo: 'magro' },
   { pele: 4, cabelo: 'cacheado', corCabelo: 'castanho', blusa: 'listrada', corBlusa: '#f2c14e', corBlusa2: '#c8322e', baixo: 'short', corBaixo: '#3d4a6b', mobilidade: 'cadeira' },
 ];
+
+// ---------------------------------------------------------------------------
+// Criador de personagem (estilo The Sims antigo): abas, campos e opções.
+// Cada opção: [valor, nome mostrado, nome curto opcional]. Campos de cor mostram uma amostra.
+
+export const CRIADOR = [
+  {
+    aba: 'Rosto',
+    campos: [
+      { k: 'pele', rotulo: 'Pele', cor: true, ops: PELES.map((c, i) => [i, 'Tom ' + (i + 1), null, c]) },
+      { k: 'cabelo', rotulo: 'Cabelo', ops: [['raspado', 'Raspado'], ['curto', 'Curto'], ['cacheado', 'Cacheado'], ['black', 'Black'], ['longo', 'Longo'], ['ondulado', 'Ondulado'], ['coque', 'Coque'], ['rabo', 'Rabo de cavalo', 'Rabo'], ['trancas', 'Tranças'], ['chanel', 'Chanel'], ['careca', 'Careca']] },
+      { k: 'corCabelo', rotulo: 'Cor', cor: true, ops: [['preto', 'Preto'], ['castanho', 'Castanho'], ['louro', 'Loiro'], ['ruivo', 'Ruivo'], ['grisalho', 'Grisalho'], ['rosa', 'Rosa'], ['azul', 'Azul']].map(([v, n]) => [v, n, null, CABELOS[v]]) },
+      { k: 'barba', rotulo: 'Barba', ops: [[null, 'Nenhuma'], ['bigode', 'Bigode'], ['curta', 'Curta'], ['cheia', 'Cheia']] },
+      { k: 'oculos', rotulo: 'Óculos', ops: [[null, 'Nenhum'], ['redondo', 'Redondo'], ['quadrado', 'Quadrado']] },
+    ],
+  },
+  {
+    aba: 'Corpo',
+    campos: [
+      { k: 'corpo', rotulo: 'Corpo', ops: [['magro', 'Magro'], ['medio', 'Médio'], ['largo', 'Largo']] },
+      { k: 'altura', rotulo: 'Altura', ops: [['baixo', 'Baixa'], ['medio', 'Média'], ['alto', 'Alta']] },
+      { k: 'mobilidade', rotulo: 'Apoio', ops: [[null, 'Nenhum'], ['cadeira', 'Cadeira de rodas', 'Cadeira'], ['muletas', 'Muletas'], ['bengala', 'Bengala'], ['protese', 'Prótese na perna', 'Prótese']] },
+      { k: 'extra', rotulo: 'Extra', ops: [[null, 'Nenhum'], ['brinco', 'Brinco'], ['aparelho', 'Aparelho auditivo', 'Aparelho'], ['rubor', 'Bochecha rosada', 'Bochecha']] },
+      { k: 'chapeu', rotulo: 'Chapéu', ops: [[null, 'Nenhum'], ['bone', 'Boné'], ['panama', 'Panamá']] },
+    ],
+  },
+  {
+    aba: 'Roupa',
+    campos: [
+      { k: 'blusa', rotulo: 'Blusa', ops: [['camiseta', 'Camiseta'], ['botao', 'Camisa'], ['regata', 'Regata'], ['listrada', 'Listrada'], ['florida', 'Florida'], ['vestido', 'Vestido'], ['fla', 'Flamengo'], ['bota', 'Botafogo'], ['flu', 'Fluminense']] },
+      { k: 'corBlusa', rotulo: 'Cor', cor: true, ops: [['#f4f1ea', 'Branca'], ['#2a2a30', 'Preta'], ['#c8322e', 'Vermelha'], ['#3a6a9a', 'Azul'], ['#4f8a5a', 'Verde'], ['#f2c14e', 'Amarela'], ['#e2793a', 'Laranja'], ['#7a5aa0', 'Roxa'], ['#d9729a', 'Rosa']].map(([v, n]) => [v, n, null, v]) },
+      { k: 'baixo', rotulo: 'Baixo', ops: [['calca', 'Calça'], ['short', 'Short'], ['pantalona', 'Pantalona'], ['saia', 'Saia']] },
+      { k: 'corBaixo', rotulo: 'Cor', cor: true, ops: [['#3d4a6b', 'Jeans'], ['#2a2a30', 'Preto'], ['#c9b48a', 'Bege'], ['#c8322e', 'Vermelho'], ['#e8e2d4', 'Branco'], ['#4f6a3a', 'Verde']].map(([v, n]) => [v, n, null, v]) },
+      { k: 'sapato', rotulo: 'Calçado', ops: [['tenis', 'Tênis'], ['sapato', 'Sapato'], ['chinelo', 'Chinelo']] },
+    ],
+  },
+];
+
+const CAMPOS = CRIADOR.flatMap((a) => a.campos);
+
+export function selecaoAleatoria() {
+  const sel = {};
+  const pesos = { barba: 0.5, oculos: 0.6, mobilidade: 0.72, extra: 0.55, chapeu: 0.7 };
+  for (const c of CAMPOS) {
+    if (pesos[c.k] && Math.random() < pesos[c.k]) sel[c.k] = 0;
+    else sel[c.k] = Math.floor(Math.random() * c.ops.length);
+  }
+  return sel;
+}
+
+export function montarLook(sel) {
+  const v = (k) => {
+    const c = CAMPOS.find((x) => x.k === k);
+    return c.ops[sel[k] % c.ops.length][0];
+  };
+  const look = {
+    pele: v('pele'), cabelo: v('cabelo'), corCabelo: v('corCabelo'), barba: v('barba'), corBarba: v('corCabelo'),
+    oculos: v('oculos'), corpo: v('corpo'), altura: v('altura'), mobilidade: v('mobilidade'), chapeu: v('chapeu'),
+    corChapeu: '#3a5a9a', blusa: v('blusa'), corBlusa: v('corBlusa'), corBlusa2: '#f4f1ea',
+    baixo: v('baixo'), corBaixo: v('corBaixo'), sapato: v('sapato'),
+    corSapato: v('sapato') === 'tenis' ? '#f4f1ea' : v('sapato') === 'chinelo' ? '#2a6aa0' : '#5a3a24',
+  };
+  if (look.blusa === 'listrada' && look.corBlusa === '#f4f1ea') look.corBlusa2 = '#3a6a9a';
+  if (look.blusa === 'florida') look.corBlusa2 = '#ffd23f';
+  const extra = v('extra');
+  if (extra === 'brinco') look.brinco = '#f2c14e';
+  if (extra === 'aparelho') look.aparelho = true;
+  if (extra === 'rubor') look.rubor = true;
+  return look;
+}
+
+export function campoDoCriador(k) { return CAMPOS.find((x) => x.k === k); }

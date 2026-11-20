@@ -1,7 +1,7 @@
 # A Noite do Bernardo
 
 Convite de aniversário em forma de jogo point and click, em pixel art, que se passa no Galeto Sat's de Botafogo.
-O convidado digita o nome, diz como vai chegar, escolhe um personagem e ajuda a improvisar um parabéns com uma polenta no lugar do bolo. No final aparece o convite com data, horário, local e a confirmação de presença.
+O convidado digita o nome, diz como vai chegar, monta o próprio personagem e ajuda a improvisar um parabéns com uma polenta no lugar do bolo. No final aparece o convite com data, horário, local e a confirmação de presença.
 
 Tudo é desenhado em código: personagens, cenários, fonte e sons. Não há imagens, áudios nem bibliotecas externas.
 
@@ -35,7 +35,8 @@ Enquanto `RSVP_URL` estiver vazio em `js/config.js`, o jogo funciona em modo de 
 | --- | --- |
 | `js/config.js` | Data, horário, local e endereço da planilha |
 | `js/roteiro.js` | Falas, piadas e a lógica da missão |
-| `js/personagens.js` | Visual de cada personagem e dos avatares |
+| `js/personagens.js` | Visual de cada personagem e opções do criador de personagem |
+| `js/audio.js` | Efeitos sonoros, ambiente da rua e do bar, música 8-bit |
 | `js/cenarios.js` | Desenho da calçada e do corredor |
 | `js/telas.js` | Telas de abertura, horário de chegada e convite final |
 | `js/motor.js` | Câmera, toque, diálogos e desenho na tela |

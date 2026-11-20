@@ -2,10 +2,11 @@
 
 import { painel, botao, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
 import { C } from './paleta.js';
-import { AVATARES } from './personagens.js';
+import { CRIADOR, selecaoAleatoria, montarLook, campoDoCriador } from './personagens.js';
 import { buildCharacter, frameCanvas } from './sprites.js';
 import { FESTA } from './config.js';
 import { enviarRSVP } from './rsvp.js';
+import { iniciarSom } from './audio.js';
 
 export const CHEGADAS = [
   {
@@ -43,8 +44,14 @@ function coluna(j, ctx, largura, blocos) {
   const w = Math.min(j.W - 8 * u, largura * u);
   const pad = 10 * u;
   const innerW = Math.floor((w - 2 * pad) / u);
-  const hs = blocos.map((b) => b.h(innerW));
-  const total = hs.reduce((a, b) => a + b, 0) * u + 2 * pad;
+  let hs = blocos.map((b) => b.h(innerW));
+  let total = hs.reduce((a, b) => a + b, 0) * u + 2 * pad;
+  // tela baixa demais: tira os blocos opcionais para os botões não saírem da tela
+  if (total > j.H - 8 * u && blocos.some((b) => b.opcional)) {
+    blocos = blocos.filter((b) => !b.opcional);
+    hs = blocos.map((b) => b.h(innerW));
+    total = hs.reduce((a, b) => a + b, 0) * u + 2 * pad;
+  }
   const x = Math.round((j.W - w) / 2);
   const y = Math.round(Math.max(4 * u, (j.H - total) / 2));
   painel(ctx, x, y, w, total, u);
@@ -100,7 +107,7 @@ export function desenharTela(j, ctx, t) {
     case 'titulo': return telaTitulo(j, ctx, t);
     case 'nome': return telaNome(j, ctx, t);
     case 'chegada': return telaChegada(j, ctx, t);
-    case 'avatar': return telaAvatar(j, ctx, t);
+    case 'avatar': return telaCriador(j, ctx, t);
     case 'convite': return telaConvite(j, ctx, t);
   }
 }
@@ -124,7 +131,7 @@ function telaTitulo(j, ctx) {
     linhaInfo(j, ctx, 'calendario', FESTA.dia),
     linhaInfo(j, ctx, 'pin', FESTA.local),
     espaco(10),
-    bt(j, ctx, 'Começar', () => irPara(j, 'nome'), { destaque: true }),
+    bt(j, ctx, 'Começar', () => { iniciarSom(); irPara(j, 'nome'); }, { destaque: true }),
     espaco(2),
     texto(j, ctx, 'Leva uns 5 minutos. Com som fica melhor.', { centro: true, cor: C.uiSuave }),
   ]);
@@ -200,50 +207,144 @@ function telaChegada(j, ctx) {
   }
 }
 
-const avatarSprites = [];
-function telaAvatar(j, ctx, t) {
+// ---------------------------------------------------------------- criador de personagem
+
+const previewCache = new Map();
+function spriteDoLook(look) {
+  const k = JSON.stringify(look);
+  if (!previewCache.has(k)) {
+    if (previewCache.size > 16) previewCache.clear();
+    previewCache.set(k, buildCharacter(look));
+  }
+  return previewCache.get(k);
+}
+
+function mudarCampo(j, campo, passo) {
+  const sel = j.criador.sel;
+  const n = campo.ops.length;
+  sel[campo.k] = ((sel[campo.k] || 0) + passo + n) % n;
+  // a prótese só aparece com short ou saia
+  if (campo.k === 'mobilidade' && campo.ops[sel.mobilidade][0] === 'protese') {
+    const b = campoDoCriador('baixo');
+    const atual = b.ops[sel.baixo][0];
+    if (atual === 'calca' || atual === 'pantalona') sel.baixo = b.ops.findIndex((o) => o[0] === 'short');
+  }
+}
+
+function seta(ctx, x, y, w, h, dir, u, hover) {
+  R(ctx, x, y, w, h, C.uiSombra);
+  R(ctx, x + u, y + u, w - 2 * u, h - 2 * u, hover ? '#fff6dd' : C.creme);
+  const cx = x + Math.floor(w / 2), cy = y + Math.floor(h / 2);
+  for (let i = 0; i < 4; i++) {
+    const px = dir < 0 ? cx - 2 * u + i * u : cx + u - i * u;
+    R(ctx, px, cy - i * u, u, (2 * i + 1) * u, C.bordo);
+  }
+}
+
+function telaCriador(j, ctx, t) {
   escuro(j, ctx);
   const u = j.u;
-  if (!avatarSprites.length) AVATARES.forEach((a) => avatarSprites.push(buildCharacter(a)));
-  const cols = j.W > j.H ? 6 : 4;
-  const rows = Math.ceil(AVATARES.length / cols);
-  const CW = 28, CH = 50;
-  const largura = j.W > j.H ? 300 : 240;
-  const iwPx = Math.min(j.W - 8 * u, largura * u) - 20 * u;
-  const k = Math.max(1, Math.floor(Math.min(iwPx / (cols * (CW + 3)), (j.H * 0.5) / (rows * (CH + 3)))));
-  const gridH = Math.ceil(rows * (CH + 3) * k / u);
-  coluna(j, ctx, largura, [
-    texto(j, ctx, 'Escolha seu personagem', { cor: C.uiDestaque }),
-    espaco(6),
-    {
-      h: () => gridH,
-      draw: (x, y, w) => {
-        const cellW = Math.floor(w / cols);
-        AVATARES.forEach((a, i) => {
-          const cx = x + (i % cols) * cellW;
-          const cy = y + Math.floor(i / cols) * (CH + 3) * k;
-          const sel = j.dados.avatar === i;
-          const r = { x: cx + u, y: cy, w: cellW - 2 * u, h: (CH + 2) * k };
-          R(ctx, r.x, r.y, r.w, r.h, sel ? '#5a3a2c' : '#3a2722');
-          if (sel) {
-            R(ctx, r.x, r.y, r.w, u, C.uiDestaque); R(ctx, r.x, r.y + r.h - u, r.w, u, C.uiDestaque);
-            R(ctx, r.x, r.y, u, r.h, C.uiDestaque); R(ctx, r.x + r.w - u, r.y, u, r.h, C.uiDestaque);
-          }
-          const nomeQ = sel ? 'walk' + (Math.floor(t / 130) % 4) : (Math.floor(t / 1000 + i) % 5 === 0 ? 'blink' : 'idle0');
-          const cv = frameCanvas(avatarSprites[i], nomeQ, false);
-          ctx.drawImage(cv, 1, 7, CW, CH, Math.round(r.x + (r.w - CW * k) / 2), r.y + k, CW * k, CH * k);
-          j.hit(r, () => { j.dados.avatar = i; });
-        });
-      },
+  if (!j.criador) j.criador = { aba: 0, sel: selecaoAleatoria() };
+  const cr = j.criador;
+  const look = montarLook(cr.sel);
+  const sp = spriteDoLook(look);
+  const deitado = j.W > j.H * 1.1;
+  const ROW = 18;
+  const controlesH = 18 + 5 * ROW;
+  const hov = (r) => j.mouse && j.dentro(r, j.mouse.x, j.mouse.y);
+
+  const preview = (x, y, w, h) => {
+    R(ctx, x, y, w, h, '#3a2722');
+    const chao = y + h - 8 * u;
+    R(ctx, x, chao, w, h - (chao - y), '#4a332c');
+    R(ctx, x, chao, w, u, '#5e4438');
+    const k = Math.max(1, Math.floor(Math.min((h - 10 * u) / 50, w / 30)));
+    const ciclo = Math.floor(t / 2600) % 4;
+    const q = ciclo === 1 || ciclo === 3 ? 'walk' + (Math.floor(t / 130) % 4) : (Math.floor(t / 1700) % 4 === 0 ? 'blink' : 'idle0');
+    const cv = frameCanvas(sp, q, ciclo === 3);
+    const pe = chao + 3 * u;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(Math.round(x + w / 2 - 7 * k), pe + k, 14 * k, 2 * k);
+    ctx.drawImage(cv, 0, 0, 30, 58, Math.round(x + w / 2 - 15 * k), Math.round(pe - 55 * k), 30 * k, 58 * k);
+  };
+
+  const controles = (x, y, w) => {
+    const n = CRIADOR.length;
+    const tw = Math.floor((w - 2 * u * (n - 1)) / n);
+    CRIADOR.forEach((a, i) => {
+      const r = { x: x + i * (tw + 2 * u), y, w: tw, h: 14 * u };
+      const sel = i === cr.aba;
+      R(ctx, r.x, r.y, r.w, r.h, sel ? C.creme : hov(r) ? '#5a4036' : '#4a332c');
+      drawText(ctx, a.aba, r.x + r.w / 2, r.y + u, u, sel ? C.contorno : C.uiTexto, null, 'center');
+      j.hit(r, () => { cr.aba = i; });
+    });
+    let cy = y + 18 * u;
+    const labelW = (Math.max(...CRIADOR.flatMap((a) => a.campos.map((c) => measure(c.rotulo)))) + 5) * u;
+    const aw = 14 * u;
+    for (const c of CRIADOR[cr.aba].campos) {
+      const op = c.ops[(cr.sel[c.k] || 0) % c.ops.length];
+      const h = 16 * u;
+      drawText(ctx, c.rotulo, x, cy + 2 * u, u, C.uiSuave, C.uiSombra);
+      const r1 = { x: x + labelW, y: cy, w: aw, h };
+      const r2 = { x: x + w - aw, y: cy, w: aw, h };
+      seta(ctx, r1.x, r1.y, r1.w, r1.h, -1, u, hov(r1));
+      seta(ctx, r2.x, r2.y, r2.w, r2.h, 1, u, hov(r2));
+      j.hit(r1, () => mudarCampo(j, c, -1));
+      j.hit(r2, () => mudarCampo(j, c, 1));
+      const vx = r1.x + aw + u, vw = r2.x - u - vx;
+      const rv = { x: vx, y: cy, w: vw, h };
+      R(ctx, vx, cy, vw, h, hov(rv) ? '#4a332c' : '#3a2722');
+      let nome = op[1];
+      const livre = vw / u - (c.cor ? 16 : 6);
+      if (measure(nome) > livre && op[2]) nome = op[2];
+      const largura = measure(nome) * u + (c.cor ? 11 * u : 0);
+      let tx = Math.round(vx + (vw - largura) / 2);
+      if (c.cor) {
+        R(ctx, tx, cy + 4 * u, 8 * u, 8 * u, C.uiSombra);
+        R(ctx, tx + u, cy + 5 * u, 6 * u, 6 * u, op[3]);
+        tx += 11 * u;
+      }
+      drawText(ctx, nome, tx, cy + 2 * u, u, C.uiTexto, C.uiSombra);
+      j.hit(rv, () => mudarCampo(j, c, 1));
+      cy += ROW * u;
+    }
+  };
+
+  const botoes = {
+    h: () => 20,
+    draw: (x, y, w) => {
+      const bw = Math.floor((w - 4 * u) / 2);
+      const ra = { x, y, w: bw, h: 16 * u };
+      const rp = { x: x + bw + 4 * u, y, w: bw, h: 16 * u };
+      botao(ctx, ra.x, ra.y, ra.w, ra.h, 'Aleatório', u, { hover: hov(ra) });
+      botao(ctx, rp.x, rp.y, rp.w, rp.h, 'Pronto', u, { destaque: true, hover: hov(rp) });
+      j.hit(ra, () => { cr.sel = selecaoAleatoria(); });
+      j.hit(rp, async () => {
+        if (j.iniciando) return;
+        j.iniciando = true;
+        j.dados.look = montarLook(cr.sel);
+        await j.fade(1, 400);
+        j.roteiro.comecar(j);
+      });
     },
-    espaco(6),
-    bt(j, ctx, 'Esse sou eu', async () => {
-      if (j.iniciando) return;
-      j.iniciando = true;
-      await j.fade(1, 400);
-      j.roteiro.comecar(j);
-    }, { destaque: true }),
-  ]);
+  };
+
+  const titulo = texto(j, ctx, 'Monte seu personagem', { cor: C.uiDestaque });
+  if (deitado) {
+    coluna(j, ctx, 300, [
+      titulo, espaco(4),
+      { h: () => controlesH, draw: (x, y, w) => { preview(x, y, 84 * u, controlesH * u - 2 * u); controles(x + 90 * u, y, w - 90 * u); } },
+      espaco(4), botoes,
+    ]);
+  } else {
+    coluna(j, ctx, 240, [
+      titulo, espaco(4),
+      { h: () => 80, draw: (x, y, w) => preview(x, y, w, 76 * u) },
+      espaco(4),
+      { h: () => controlesH, draw: (x, y, w) => controles(x, y, w) },
+      espaco(2), botoes,
+    ]);
+  }
 }
 
 function telaConvite(j, ctx) {
@@ -258,7 +359,7 @@ function telaConvite(j, ctx) {
     linhaInfo(j, ctx, 'calendario', FESTA.dia),
     linhaInfo(j, ctx, 'relogio', FESTA.horario),
     linhaInfo(j, ctx, 'pin', FESTA.local),
-    linhaInfo(j, ctx, 'chopp', `Sua chegada: ${ch.carioca}, com o fator carioca.`),
+    { ...linhaInfo(j, ctx, 'chopp', `Sua chegada: ${ch.carioca}, com o fator carioca.`), opcional: true },
   ];
   const responder = async (chave) => {
     cv.etapa = 'resposta';
@@ -292,7 +393,7 @@ function telaConvite(j, ctx) {
     espaco(4),
     texto(j, ctx, st, { cor: cv.status === 'erro' ? '#ff9a8a' : C.uiSuave }),
     espaco(8),
-    ...(cv.chave !== 'nao' ? infos.slice(0, 3) : []),
+    ...(cv.chave !== 'nao' ? infos.slice(0, 3).map((b) => ({ ...b, opcional: true })) : []),
     espaco(6),
     cv.status === 'erro' ? bt(j, ctx, 'Tentar de novo', () => responder(cv.chave), { destaque: true }) : null,
     cv.chave !== 'nao' ? bt(j, ctx, 'Ver no mapa', () => window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(FESTA.buscaMapa), '_blank', 'noopener')) : null,

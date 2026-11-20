@@ -3,7 +3,7 @@
 
 import { FREQUENTADORES, AVATARES } from './personagens.js';
 import { buildCharacter, ITENS } from './sprites.js';
-import { sfx, iniciarAmbiente } from './audio.js';
+import { sfx, iniciarSom, setLugar } from './audio.js';
 
 const LUZ_IDX = { entardecer: 0, anoitecer: 1, noite: 2 };
 const sorteio = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -318,7 +318,7 @@ async function falarCarlos(j) {
     !f.copoCheio && { t: 'Um chopp pro Bernardo.', fn: async () => {
       await j.fala('carlos', 'Pro aniversariante? Sai na hora, campeão.');
       const b = j.ent.bernardo;
-      const volta = { x: c.x, y: c.y };
+      const volta = { x: 452, y: 172 };
       j.foco = c;
       await j.andar(c, b.x + 14, b.y + 2);
       j.olhar(c, b);
@@ -349,11 +349,11 @@ async function falarCarlos(j) {
 async function ofertaSerjao(j) {
   const f = j.f, s = j.ent.serjao, p = j.jogador;
   f.serjaoOfereceu = true;
-  j.balao('serjao', 'Ô, {nome}!', 1500);
+  j.balao('serjao', 'Ô, você aí!', 1500);
   const lado = p.x < s.x ? 1 : -1;
   await j.andar(s, p.x + lado * 18, p.y);
   j.olhar(s, p); j.olhar(p, s);
-  await j.fala('serjao', 'E aí, {nome}! Bem-vindo à casa do Serjão. Vai uma cachaça? É por conta da casa.');
+  await j.fala('serjao', 'Chegou mais um! Não sei seu nome, mas aqui todo mundo é de casa. Vai uma cachaça? É por conta da casa.');
   const r = await j.escolha([
     { t: 'Aceitar', v: 'sim' },
     { t: 'Recusar', v: 'nao' },
@@ -362,13 +362,13 @@ async function ofertaSerjao(j) {
   if (r === 'sim') await aceitarCachaca(j);
   if (r === 'nao') {
     await j.fala('serjao', 'Recusar cachaça do Serjão... na casa do Serjão?');
-    await j.fala('serjao', 'Tudo bem, {nome}. Eu respeito. Não entendo, mas respeito.');
+    await j.fala('serjao', 'Tudo bem. Eu respeito. Não entendo, mas respeito.');
   }
   if (r === 'quem') {
     s.falando = false;
     await j.espera(700);
     await j.fala('serjao', '...Quem é Serjão?');
-    await j.fala('serjao', 'Eu tô nesse balcão desde antes de você saber andar, {nome}.');
+    await j.fala('serjao', 'Eu tô nesse balcão desde antes de você saber andar.');
     await j.fala('serjao', 'Tá vendo esse chopp? Essa polenta? Esse corredor? Tudo isso é Serjão.');
     sfx.triste();
     await j.narra('Serjão se afasta devagar, magoado, ajeitando o chapéu.');
@@ -381,7 +381,7 @@ async function aceitarCachaca(j) {
   const f = j.f, p = j.jogador;
   const antes = p.segurando;
   p.segurando = 'dose';
-  await j.fala('serjao', 'Isso, {nome}! Essa aqui é da boa. Dizem que cura tudo, menos ressaca.');
+  await j.fala('serjao', 'Isso aí! Essa aqui é da boa. Dizem que cura tudo, menos ressaca.');
   sfx.gole();
   await j.narra('Desce queimando e sobe sorrindo.');
   p.segurando = antes;
@@ -394,7 +394,7 @@ async function falarSerjao(j) {
   if (!f.serjaoOfereceu) return ofertaSerjao(j);
   if (f.serjaoMagoado && !f.serjaoPerdoou) {
     await j.fala('serjao', 'Ah, agora quer falar com o Serjão, né?');
-    await j.fala('serjao', 'Tá bom, {nome}. Uma cachaça pra fazer as pazes?');
+    await j.fala('serjao', 'Tá bom. Uma cachaça pra fazer as pazes?');
     const r = await j.escolha([{ t: 'Aceitar', v: 'sim' }, { t: 'Pedir desculpas', v: 'desc' }]);
     if (r === 'sim') await aceitarCachaca(j);
     else await j.fala('serjao', 'Desculpa aceita. Mas a cachaça continua de pé, hein.');
@@ -402,7 +402,7 @@ async function falarSerjao(j) {
     return;
   }
   await j.fala('serjao', sorteio([
-    'Tá gostando, {nome}? Essa casa tem história. Metade eu nem posso contar.',
+    'Tá gostando? Essa casa tem história. Metade eu nem posso contar.',
     'O segredo do galeto? Amor, carvão e um pouco de cachaça. No cozinheiro.',
   ]));
   if (f.missao && !f.serjaoParabens) {
@@ -611,10 +611,27 @@ async function usarBanheiro(j) {
   }
   sfx.porta();
   est.banheiroAberto = true;
+  f.wc = 3;
   await j.espera(500);
   await j.narra('A porta abre. Não tem ninguém. Só uma moeda no chão, brilhando.');
+  // entra, fecha a porta, xixi, descarga, sai
+  const p = j.jogador;
+  await j.andar(p, 518, 157);
+  p.visivel = false;
+  est.banheiroAberto = false;
+  sfx.porta();
+  await j.espera(800);
+  sfx.xixi();
+  j.balaoEm('corredor', 518, 64, '*psssssssss*', 2900);
+  await j.espera(3100);
+  sfx.descarga();
+  j.balaoEm('corredor', 518, 64, '*chuááááá*', 1800);
+  await j.espera(1900);
+  sfx.porta();
+  est.banheiroAberto = true;
+  p.visivel = true;
+  await j.andar(p, 518, 172);
   await j.narra('Alívio. A vida segue.');
-  f.wc = 3;
   f.vontade = false;
 }
 
@@ -726,6 +743,9 @@ export const roteiro = {
     j.ent.bernardo.segurando = 'copoMetade';
     j.ent.juninho.segurando = 'copoCheio';
     j.ent.rafa.segurando = 'copoMetade';
+    j.ent.beto.segurando = 'copoCheio';
+    j.ent.guto.segurando = 'copoMetade';
+    j.ent.duda.segurando = 'copoMetade';
     j.ent.renatao.segurando = 'copoCheio';
     this.frequentadores(j);
 
@@ -758,7 +778,11 @@ export const roteiro = {
     O({ id: 'moeda', cena: 'corredor', nome: 'Moeda', rect: { x: 512, y: 152, w: 7, h: 6 }, ir: { x: 520, y: 170 }, prioridade: 500,
       ativo: (j2) => j2.f.wc === 3, usar: (j2) => j2.narra('Uma moeda solitária. O Brasil inteiro conhece essa história.') });
     O({ id: 'tv', cena: 'corredor', nome: 'TV', rect: { x: 336, y: 26, w: 36, h: 24 }, ir: { x: 354, y: 168 },
-      usar: (j2) => j2.narra('Está passando um jogo. Ninguém sabe de quando, nem de quem. Todo mundo opina mesmo assim.') });
+      usar: async (j2) => {
+        sfx.apito();
+        await j2.espera(700);
+        await j2.narra('Está passando um jogo. Ninguém sabe de quando, nem de quem. Todo mundo opina mesmo assim.');
+      } });
     O({ id: 'lustre', cena: 'corredor', nome: 'Lustre de isoladores', rect: { x: 426, y: 26, w: 40, h: 24 }, ir: { x: 446, y: 170 },
       usar: (j2) => j2.narra('Um lustre feito de isoladores de vidro de poste. Alguém olhou pra um poste e pensou: decoração.') });
     O({ id: 'chopeira', cena: 'corredor', nome: 'Chopeira', rect: { x: 434, y: 86, w: 16, h: 22 }, ir: { x: 440, y: 168 },
@@ -778,14 +802,15 @@ export const roteiro = {
   },
 
   async comecar(j) {
-    const p = j.criar('jogador', { look: AVATARES[j.dados.avatar], cena: 'calcada', x: 30, y: 184, face: 1, vel: 72, clicavel: false });
+    const p = j.criar('jogador', { look: j.dados.look || AVATARES[j.dados.avatar || 0], cena: 'calcada', x: 30, y: 184, face: 1, vel: 72, clicavel: false });
     p.nome = j.dados.primeiro; p.papel = 'Você';
     j.jogador = p;
     this.frequentadores(j);
     j.cenaAtual = 'calcada';
     j.camX = 0;
     j.tela = 'jogo';
-    iniciarAmbiente();
+    iniciarSom();
+    setLugar('rua');
     await j.fade(0, 500);
     j.rodar(async () => {
       const ch = j.dados.chegada;
@@ -800,6 +825,7 @@ export const roteiro = {
   },
 
   aoEntrar(j, cena) {
+    setLugar(cena === 'corredor' ? 'bar' : 'rua');
     const f = j.f, R = j.ent.renatao;
     if (cena === 'corredor') f.entrouCorredor = true;
     // o amigo que nunca vai embora reaparece onde você estiver
@@ -846,14 +872,16 @@ export const roteiro = {
       f.vontade = true;
       j.balao('jogador', 'Hmm... preciso ir ao banheiro.', 2600, true);
     }
-    // Serjão vem oferecer cachaça
-    if (livre && !f.serjaoOfereceu && j.cenaAtual === 'corredor' && f.tCorredor > 11000) {
+    // Serjão vem oferecer cachaça, já com a missão andando (ou depois de um bom tempo no bar)
+    const horaDoSerjao = (f.missao && progresso(f) >= 3 && j.t - (f.alinneSaiuT || 0) > 15000) || f.tCorredor > 150000;
+    if (livre && !f.serjaoOfereceu && j.cenaAtual === 'corredor' && horaDoSerjao && !E.carlos.alvo) {
       j.rodar(ofertaSerjao);
       return;
     }
     // Alinne vai atrás do Caramelo
     if (livre && f.missao && !f.alinneSaiu && progresso(f) >= 2 && j.cenaAtual === 'corredor') {
       f.alinneSaiu = true;
+      f.alinneSaiuT = j.t;
       j.rodar(async () => {
         const A = E.alinne;
         sfx.latido();
@@ -907,8 +935,59 @@ export const roteiro = {
       f.serjaoT = j.t + 5000 + Math.random() * 5000;
       j.andar(S, 380 + Math.random() * 90, 180 + Math.random() * 12);
     }
+    // copos esvaziando e o garçom servindo
+    this.copos(j, dt);
     // conversas de fundo (balões)
     this.baloesAmbiente(j);
+  },
+
+  copos(j, dt) {
+    const f = j.f, E = j.ent;
+    if (f.festa) return;
+    const BEBEDORES = ['rafa', 'beto', 'guto', 'renatao', 'f2', 'f5', 'duda'];
+    for (const id of [...BEBEDORES, 'jogador']) {
+      const e = E[id];
+      if (!e || e.cena !== 'corredor' || !e.visivel || !e.segurando || !e.segurando.startsWith('copo')) continue;
+      if (id === 'duda' && !f.dudaLivre) continue;
+      if (e.goleAte && j.t > e.goleAte) { e.pose = null; e.goleAte = 0; }
+      if (e.querChopp || e.alvo) continue;
+      e.copoT = (e.copoT ?? 12000 + Math.random() * 40000) - dt;
+      if (e.copoT > 0) continue;
+      // um gole
+      if (!e.pose) { e.pose = 'peito'; e.goleAte = j.t + 800; }
+      if (e.segurando === 'copoCheio') {
+        e.segurando = 'copoMetade';
+        e.copoT = 30000 + Math.random() * 30000;
+      } else if (e.segurando === 'copoMetade') {
+        e.segurando = 'copoVazio';
+        if (id === 'jogador') { f.chopp = false; continue; }
+        e.querChopp = true;
+        if (j.cenaAtual === 'corredor') j.balao(id, sorteio(['Seu Carlos!', 'Desce mais um!', 'Mais um, por favor!', 'Garçom!']), 2000);
+      }
+    }
+    // o garçom vai até quem está com o copo vazio
+    const c = E.carlos;
+    if (f.serv || j.ocupado || c.alvo || c.cena !== 'corredor') return;
+    const alvo = BEBEDORES.map((id) => E[id]).find((e) => e && e.querChopp && e.cena === 'corredor' && e.visivel);
+    if (!alvo) {
+      if (Math.hypot(c.x - 452, c.y - 172) > 4) j.andar(c, 452, 172).then((ok) => { if (ok) c.face = -1; });
+      return;
+    }
+    f.serv = alvo.id;
+    const lado = alvo.x > c.x ? -1 : 1;
+    j.andar(c, Math.max(14, Math.min(546, alvo.x + lado * 15)), Math.min(196, alvo.y + 2)).then((ok) => {
+      if (!ok || f.festa) { f.serv = null; return; }
+      j.olhar(c, alvo);
+      alvo.segurando = 'copoCheio';
+      alvo.querChopp = false;
+      alvo.copoT = 30000 + Math.random() * 30000;
+      if (j.cenaAtual === 'corredor' && Math.abs(j.jogador.x - alvo.x) < 170) sfx.servir();
+      j.balao('carlos', sorteio(['Tá na mão!', 'Gelado, campeão.', 'Já veio, campeão!']), 1600);
+      setTimeout(() => {
+        if (j.ocupado || f.festa) { f.serv = null; return; }
+        j.andar(c, 452, 172).then(() => { c.face = -1; f.serv = null; });
+      }, 900);
+    });
   },
 
   baloesAmbiente(j) {

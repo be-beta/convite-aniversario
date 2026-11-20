@@ -4,7 +4,7 @@ import { SCENE_H, criarCenarios, glowSprite, LUZES } from './cenarios.js';
 import { buildCharacter, buildDog, buildItems, frameCanvas, ITENS, CX, GY, FW, DOG } from './sprites.js';
 import { highlightCanvas, C } from './paleta.js';
 import { painel, botao, rotulo, balao, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
-import { sfx, destravar, isMudo, setMudo } from './audio.js';
+import { sfx, destravar, isMudo, setMudo, isMusica, setMusica } from './audio.js';
 import { ELENCO } from './personagens.js';
 import { desenharTela } from './telas.js';
 
@@ -132,10 +132,19 @@ export class Jogo {
 
   andar(e, x, y) {
     if (typeof e === 'string') e = this.ent[e];
+    // uma caminhada nova cancela a anterior (a promessa antiga resolve com false)
+    if (e.chegou) { const antiga = e.chegou; e.chegou = null; antiga(false); }
     return new Promise((res) => {
       e.alvo = { x, y: y ?? e.y };
       e.chegou = res;
     });
+  }
+
+  parar(e) {
+    if (!e.alvo) return;
+    e.alvo = null;
+    const cb = e.chegou; e.chegou = null;
+    if (cb) cb(false);
   }
 
   olhar(e, alvo) {
@@ -157,6 +166,16 @@ export class Jogo {
       this.dialogo = { tipo: 'fala', quem, texto: this.fmt(texto), mostrado: 0, res };
       if (e) e.falando = true;
     }).then(() => { if (e) e.falando = false; });
+  }
+
+  tomDaVoz(quem) {
+    if (quem === 'narrador') return 196;
+    if (quem === 'voce') return 392;
+    const fixos = { bernardo: 300, alinne: 520, serjao: 165, carlos: 250, caramelo: 700 };
+    if (fixos[quem]) return fixos[quem];
+    let h = 0;
+    for (const ch of quem) h = (h * 31 + ch.charCodeAt(0)) % 997;
+    return 220 + (h % 9) * 35;
   }
 
   narra(texto) { return this.fala('narrador', texto); }
@@ -290,7 +309,7 @@ export class Jogo {
     const executar = () => {
       if (this.pendente !== h) return;
       this.pendente = null;
-      if (h.ent) { this.olhar(p, h.ent); if (!h.ent.sprite.dog && !h.ent.fixoFace) this.olhar(h.ent, p); }
+      if (h.ent) { this.parar(h.ent); this.olhar(p, h.ent); if (!h.ent.sprite.dog && !h.ent.fixoFace) this.olhar(h.ent, p); }
       else if (h.obj && h.obj.face) p.face = h.obj.face;
       else p.face = (h.caixa.x + h.caixa.w / 2) >= p.x ? 1 : -1;
       this.rodar(h.usar);
@@ -400,7 +419,7 @@ export class Jogo {
         if (d <= passo) {
           e.x = e.alvo.x; e.y = e.alvo.y; e.alvo = null;
           const cb = e.chegou; e.chegou = null;
-          if (cb) cb();
+          if (cb) cb(true);
         } else {
           e.x += dx / d * passo; e.y += dy / d * passo;
         }
@@ -419,7 +438,16 @@ export class Jogo {
     }
     // diálogo letra a letra
     const d = this.dialogo;
-    if (d && d.tipo === 'fala' && d.mostrado < d.texto.length) d.mostrado = Math.min(d.texto.length, d.mostrado + dt * 0.05);
+    if (d && d.tipo === 'fala' && d.mostrado < d.texto.length) {
+      const antes = Math.floor(d.mostrado);
+      d.mostrado = Math.min(d.texto.length, d.mostrado + dt * 0.05);
+      const agoraI = Math.floor(d.mostrado);
+      // bipe de "voz" a cada duas letras, com tom próprio de cada personagem
+      if (agoraI !== antes && agoraI % 2 === 0 && /[a-zà-úA-ZÀ-Ú0-9]/.test(d.texto[agoraI - 1] || '') && this.t - (this.ultimoBipe || 0) > 55) {
+        this.ultimoBipe = this.t;
+        sfx.voz(this.tomDaVoz(d.quem));
+      }
+    }
     // fade
     if (this.fadeA !== this.fadeAlvo) {
       const s = Math.sign(this.fadeAlvo - this.fadeA);
@@ -653,7 +681,8 @@ export class Jogo {
       this.hit({ x: x - 2 * u, y: by - 2 * u, w: bs + 4 * u, h: bs + 4 * u }, fn);
     };
     botaoIcone(bx, isMudo() ? 'mudo' : 'som', () => setMudo(!isMudo()));
-    botaoIcone(bx - bs - 3 * u, 'lupa', () => { this.lupaAte = this.t + 2600; });
+    botaoIcone(bx - bs - 3 * u, isMusica() ? 'nota' : 'semNota', () => setMusica(!isMusica()));
+    botaoIcone(bx - 2 * (bs + 3 * u), 'lupa', () => { this.lupaAte = this.t + 2600; });
     if (this.sobreposto) {
       const tw = (measure('MISSÃO') + 10) * u;
       const x = Math.max(m, sr.x + m);
@@ -700,16 +729,31 @@ export class Jogo {
     const cab = this.cabecalho(d.tipo === 'escolha' && d.contexto ? d.contexto.quem : d.quem);
     const cabH = cab ? 22 * u : 0;
     let linhas = [], conteudoH = 0;
+    let colunas = 1;
+    const colW = Math.floor((bw - 2 * pad - 4 * u) / 2);
+    const alturaEscolha = () => linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + Math.ceil(d.opcoes.length / colunas) * 19 * u + 2 * u;
     if (d.tipo === 'fala') {
       if (!d.linhas || d.larg !== innerW) { d.linhas = wrap(d.texto, innerW); d.larg = innerW; }
       linhas = d.linhas;
       conteudoH = linhas.length * LINE_H * u + 8 * u;
     } else {
       linhas = d.contexto ? wrap(d.contexto.texto, innerW) : [];
-      conteudoH = linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + d.opcoes.length * 19 * u + 2 * u;
+      conteudoH = alturaEscolha();
     }
-    const bh = pad + cabH + conteudoH + 4 * u;
-    const by = this.sobreposto ? this.H - bh - m : area.y + m;
+    let bh = pad + cabH + conteudoH + 4 * u;
+    let by = this.sobreposto ? this.H - bh - m : area.y + m;
+    // muitas opções: tenta duas colunas, depois sobe a caixa por cima da cena
+    if (d.tipo === 'escolha' && by + bh > this.H - m) {
+      if (d.opcoes.every((o) => (measure(o.t) + 20) * u <= colW)) {
+        colunas = 2;
+        bh = pad + cabH + alturaEscolha() + 4 * u;
+      }
+      if (by + bh > this.H - m && bh > this.H - 2 * m && linhas.length) {
+        linhas = [];
+        bh = pad + cabH + alturaEscolha() + 4 * u;
+      }
+    }
+    if (by + bh > this.H - m) by = Math.max(m, this.H - bh - m);
     painel(ctx, bx, by, bw, bh, u);
     let y = by + pad - 2 * u;
     if (cab) {
@@ -749,7 +793,10 @@ export class Jogo {
       for (const l of linhas) { drawText(ctx, l, bx + pad, y, u, cor, C.uiSombra); y += LINE_H * u; }
       if (linhas.length) y += 5 * u;
       d.opcoes.forEach((o, i) => {
-        const r = { x: bx + pad, y: y + i * 19 * u, w: bw - 2 * pad, h: 16 * u };
+        const col = i % colunas, lin = Math.floor(i / colunas);
+        const r = colunas === 1
+          ? { x: bx + pad, y: y + i * 19 * u, w: bw - 2 * pad, h: 16 * u }
+          : { x: bx + pad + col * (colW + 4 * u), y: y + lin * 19 * u, w: colW, h: 16 * u };
         const hov = this.mouse && this.dentro(r, this.mouse.x, this.mouse.y);
         botao(ctx, r.x, r.y, r.w, r.h, o.t, u, { alinhar: 'left', numero: i + 1, hover: hov });
         this.hit(r, () => this.escolher(i));
