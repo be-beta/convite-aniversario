@@ -6,13 +6,14 @@ import { RSVP_URL } from './config.js';
 export async function enviarRSVP({ nome, resposta, chegada, personagem }) {
   if (!RSVP_URL) return 'teste';
   try {
-    await fetch(RSVP_URL, {
+    // text/plain evita a pré-checagem de CORS; o Apps Script responde "ok" quando grava
+    const r = await fetch(RSVP_URL, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ nome, resposta, chegada, personagem }),
     });
-    return 'ok';
+    const txt = (await r.text()).trim();
+    return r.ok && txt === 'ok' ? 'ok' : 'erro';
   } catch (e) {
     return 'erro';
   }

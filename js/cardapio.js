@@ -2,7 +2,7 @@
 // Fonte: página do Sat's no Rappi (unidade Copacabana, preços de delivery), consultada em novembro de 2026.
 // O site do cardápio da unidade Botafogo estava fora do ar. No balcão os valores podem ser diferentes.
 
-export const FONTE_CARDAPIO = 'Preços do delivery (Rappi), consultados em nov/2026. No balcão podem variar.';
+export const FONTE_CARDAPIO = 'Cardápio especulativo, não oficial: preços tirados do delivery (Rappi) em nov/2026. No bar podem ser outros.';
 
 export const CARDAPIO = [
   {

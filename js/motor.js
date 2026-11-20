@@ -90,23 +90,32 @@ export class Jogo {
     this.H = this.canvas.height = Math.round(ch * dpr);
     const retrato = ch > cw;
     const uiCss = Math.min(cw / 190, ch / 250) >= 3.4 ? 3 : 2;
-    this.u = Math.max(1, Math.round(uiCss * dpr));
-    const minUI = (retrato ? 118 : 96) * this.u;
-    const S2 = Math.max(1, Math.floor(this.W / MIN_VIEW));
-    const S1 = Math.floor((this.H - minUI) / SCENE_H);
-    const Smax = Math.max(1, Math.floor(this.H / SCENE_H));
-    this.sobreposto = false;
-    let S = Math.min(S1, S2);
-    if (S < 1 || (!retrato && S1 < Smax * 0.6)) {
-      S = Math.min(Smax, S2);
-      this.sobreposto = true;
-    }
-    this.S = Math.max(1, S);
-    this.maxViewW = Math.floor(this.W / this.S);
+    const u = this.u = Math.max(1, Math.round(uiCss * dpr));
     this.retrato = retrato;
-    // no celular em pé, centraliza verticalmente cena + área de texto
     this.offY = 0;
-    if (!this.sobreposto && retrato) this.offY = Math.max(0, Math.floor((this.H - this.S * SCENE_H - 150 * this.u) / 2));
+    let S;
+    if (retrato) {
+      // em pé: jogo em cima, textos embaixo (como emulador de console)
+      this.modo = 'baixo';
+      S = Math.max(1, Math.min(Math.floor((this.H - 118 * u) / SCENE_H), Math.floor(this.W / MIN_VIEW)));
+      this.maxViewW = Math.floor(this.W / S);
+      this.offY = Math.max(0, Math.floor((this.H - S * SCENE_H - 190 * u) / 2));
+    } else {
+      // deitado / computador: jogo à esquerda, textos numa coluna à direita
+      this.painelW = Math.min(240 * u, Math.floor(this.W * 0.42));
+      this.areaW = this.W - this.painelW;
+      S = Math.min(Math.floor(this.H / SCENE_H), Math.floor(this.areaW / MIN_VIEW));
+      if (S >= 1) {
+        this.modo = 'lado';
+        this.maxViewW = Math.floor(this.areaW / S);
+      } else {
+        this.modo = 'sobreposto';
+        S = Math.max(1, Math.min(Math.floor(this.H / SCENE_H), Math.floor(this.W / MIN_VIEW)));
+        this.maxViewW = Math.floor(this.W / S);
+      }
+    }
+    this.S = S;
+    this.sobreposto = this.modo === 'sobreposto';
   }
 
   get cena() { return this.cenas[this.cenaAtual]; }
@@ -115,10 +124,12 @@ export class Jogo {
 
   get sceneRect() {
     const w = this.viewW * this.S, h = SCENE_H * this.S;
+    if (this.modo === 'lado') return { x: Math.floor((this.areaW - w) / 2), y: Math.floor((this.H - h) / 2), w, h };
     return { x: Math.floor((this.W - w) / 2), y: this.offY, w, h };
   }
 
   get uiRect() {
+    if (this.modo === 'lado') return { x: this.areaW, y: 0, w: this.W - this.areaW, h: this.H };
     if (this.sobreposto) return { x: 0, y: 0, w: this.W, h: this.H };
     const y = SCENE_H * this.S + this.offY;
     return { x: 0, y, w: this.W, h: this.H - y };
@@ -694,6 +705,14 @@ export class Jogo {
     const lim = this.limitesTela();
     const sr = this.sceneRect;
 
+    // coluna de textos ao lado do jogo (computador e celular deitado)
+    if (this.modo === 'lado') {
+      const a = this.uiRect;
+      R(ctx, a.x, a.y, a.w, a.h, '#21151a');
+      R(ctx, a.x, a.y, u, a.h, '#3a2722');
+      drawText(ctx, 'A NOITE DO BERNARDO', a.x + a.w / 2, a.y + 4 * u, u, '#7a5a4c', null, 'center');
+    }
+
     // balões
     for (const e of Object.values(this.ent)) {
       if (e.cena !== this.cenaAtual || !e.visivel || !e.balaoTxt || e.balaoAte < this.t) continue;
@@ -786,9 +805,9 @@ export class Jogo {
     const cab = this.cabecalho(d.tipo === 'escolha' && d.contexto ? d.contexto.quem : d.quem);
     const cabH = cab ? 22 * u : 0;
     let linhas = [], conteudoH = 0;
-    let colunas = 1;
+    let colunas = 1, rowH = 19, btnH = 16;
     const colW = Math.floor((bw - 2 * pad - 4 * u) / 2);
-    const alturaEscolha = () => linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + Math.ceil(d.opcoes.length / colunas) * 19 * u + 2 * u;
+    const alturaEscolha = () => linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + Math.ceil(d.opcoes.length / colunas) * rowH * u + 2 * u;
     if (d.tipo === 'fala') {
       if (!d.linhas || d.larg !== innerW) { d.linhas = wrap(d.texto, innerW); d.larg = innerW; }
       linhas = d.linhas;
@@ -798,19 +817,17 @@ export class Jogo {
       conteudoH = alturaEscolha();
     }
     let bh = pad + cabH + conteudoH + 4 * u;
-    let by = this.sobreposto ? this.H - bh - m : area.y + m;
-    // muitas opções: tenta duas colunas, depois sobe a caixa por cima da cena
+    const topoPainel = this.modo === 'lado' ? area.y + 16 * u : area.y + m;
+    let by = this.sobreposto ? m : topoPainel;
+    const recalcula = () => { bh = pad + cabH + alturaEscolha() + 4 * u; };
+    // muitas opções: tenta duas colunas, depois botões mais baixos, depois esconde a fala anterior
     if (d.tipo === 'escolha' && by + bh > this.H - m) {
-      if (d.opcoes.every((o) => (measure(o.t) + 20) * u <= colW)) {
-        colunas = 2;
-        bh = pad + cabH + alturaEscolha() + 4 * u;
-      }
-      if (by + bh > this.H - m && bh > this.H - 2 * m && linhas.length) {
-        linhas = [];
-        bh = pad + cabH + alturaEscolha() + 4 * u;
-      }
+      if (d.opcoes.every((o) => (measure(o.t) + 20) * u <= colW)) { colunas = 2; recalcula(); }
+      if (by + bh > this.H - m) { rowH = 16; btnH = 14; recalcula(); }
+      if (by + bh > this.H - m && linhas.length) { linhas = []; recalcula(); }
     }
-    if (by + bh > this.H - m) by = Math.max(m, this.H - bh - m);
+    // em último caso a caixa cobre o alto da cena, onde não ficam os personagens
+    if (by + bh > this.H - m) by = this.modo === 'baixo' ? Math.max(m, this.sceneRect.y + m) : Math.max(m, this.H - bh - m);
     painel(ctx, bx, by, bw, bh, u);
     let y = by + pad - 2 * u;
     if (cab) {
@@ -852,8 +869,8 @@ export class Jogo {
       d.opcoes.forEach((o, i) => {
         const col = i % colunas, lin = Math.floor(i / colunas);
         const r = colunas === 1
-          ? { x: bx + pad, y: y + i * 19 * u, w: bw - 2 * pad, h: 16 * u }
-          : { x: bx + pad + col * (colW + 4 * u), y: y + lin * 19 * u, w: colW, h: 16 * u };
+          ? { x: bx + pad, y: y + i * rowH * u, w: bw - 2 * pad, h: btnH * u }
+          : { x: bx + pad + col * (colW + 4 * u), y: y + lin * rowH * u, w: colW, h: btnH * u };
         const hov = this.mouse && this.dentro(r, this.mouse.x, this.mouse.y);
         botao(ctx, r.x, r.y, r.w, r.h, o.t, u, { alinhar: 'left', numero: i + 1, hover: hov });
         this.hit(r, () => this.escolher(i));
@@ -874,7 +891,7 @@ export class Jogo {
     const dica = info.dica ? wrap(info.dica, innerW) : [];
     const itensH = info.itens.length * 11 * u;
     const bh = pad + 12 * u + itensH + (dica.length ? dica.length * LINE_H * u + 6 * u : 0) + pad - 2 * u;
-    let by = flutuante ? Math.round(this.sceneRect.y + 24 * u) : area.y + m;
+    let by = flutuante ? Math.round(this.sceneRect.y + 24 * u) : (this.modo === 'lado' ? area.y + 16 * u : area.y + m);
     if (!flutuante && by + bh > this.H) by = this.H - bh - u;
     painel(ctx, bx, by, bw, bh, u, { fundo: '#2b1d1a' });
     let y = by + pad - 2 * u;
