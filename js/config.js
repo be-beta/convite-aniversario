@@ -12,4 +12,4 @@ export const FESTA = {
 
 // Endereço do Web App do Google Apps Script (veja apps-script/README.md).
 // Vazio = modo de teste: o jogo mostra a resposta, mas não envia nada.
-export const RSVP_URL = 'https://script.google.com/macros/s/AKfycbwnfJvH3WF-Yr8-mZ45aHKdR-7p8hdWiCvl-1D_KpdGC-EfA2eJ2oE9AmBbS9oENdmOYw/exec';
+export const RSVP_URL = 'https://script.google.com/macros/s/AKfycby1EBineZLFsKw4-3HfcVjA1H-AYzvPCPlz0MTDgpkFhl1LAqPUb1q2Hx7sIiFlr2rs/exec';
