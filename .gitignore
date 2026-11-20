@@ -1,0 +1,9 @@
+# Referências locais (fotos com pessoas reais e o PDF do escopo)
+referencias/
+
+# Configurações locais de ferramentas
+.claude/
+.env
+*.log
+.DS_Store
+Thumbs.db

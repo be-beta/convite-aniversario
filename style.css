@@ -1,0 +1,45 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1c1214;
+  color: #f4ead2;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+#tela {
+  position: fixed;
+  inset: 0;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Campo real de texto, invisível, posicionado sobre a caixa desenhada no canvas.
+   Assim o teclado do celular abre normalmente. */
+#campo-nome {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  opacity: 0.01;
+  font-size: 16px; /* evita zoom automático no iOS */
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  outline: none;
+}
+
+noscript {
+  display: block;
+  padding: 2rem;
+  font-family: monospace;
+}

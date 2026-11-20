@@ -1,0 +1,14 @@
+// Dados da festa e da confirmação de presença.
+// Edite aqui se algo mudar. Nada além disso precisa ser alterado para trocar data ou local.
+
+export const FESTA = {
+  aniversariante: 'Bernardo',
+  dia: 'Sexta, 27 de novembro',
+  horario: 'A partir das 17h',
+  local: "Galeto Sat's Botafogo, nº 212",
+  buscaMapa: "Galeto Sat's Botafogo, Rio de Janeiro",
+};
+
+// Endereço do Web App do Google Apps Script (veja apps-script/README.md).
+// Vazio = modo de teste: o jogo mostra a resposta, mas não envia nada.
+export const RSVP_URL = '';
