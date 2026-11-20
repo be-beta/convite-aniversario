@@ -55,6 +55,11 @@ function corBlusaEm(L, x, y, top) {
     case 'fla': return (Math.floor(r / 2) % 2 === 0) ? '#c4161c' : '#1d1c22';
     case 'bota': return (Math.floor((x + 1) / 2) % 2 === 0) ? '#1d1c22' : '#f2f0ea';
     case 'flu': return ['#7d1d2c', '#7d1d2c', '#f2f0ea', '#1e6b3c', '#1e6b3c', '#f2f0ea'][((x % 6) + 6) % 6];
+    case 'vasco': {
+      // camisa preta com a faixa branca na diagonal
+      const d = (x - (CX - 6)) - r;
+      return d >= 1 && d <= 3 ? '#f2f0ea' : '#1d1c22';
+    }
     case 'listrada': return (Math.floor(r / 2) % 2 === 0) ? L.corBlusa : L.corBlusa2;
     case 'florida': {
       const h = (x * 7 + y * 13) % 11;

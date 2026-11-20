@@ -24,10 +24,16 @@ Para testes, `http://localhost:8123/?teste=1` pula as telas iniciais e vai diret
 3. Em "Source", escolha **Deploy from a branch**, branch `main`, pasta `/ (root)`.
 4. Em um ou dois minutos o jogo fica disponível em `https://SEU-USUARIO.github.io/NOME-DO-REPO/`.
 
-## Confirmações de presença
+## Confirmações de presença e galeria
 
-As respostas vão para uma planilha Google sua. Veja `apps-script/README.md`.
+As respostas vão para uma planilha Google sua, junto com um código curto do personagem que cada convidado montou. Veja `apps-script/README.md`.
 Enquanto `RSVP_URL` estiver vazio em `js/config.js`, o jogo funciona em modo de teste e não envia nada.
+
+A página `galeria.html` mostra todos os personagens criados. Ela só exibe algo com a chave definida no Apps Script.
+
+## Cardápio
+
+O cardápio que aparece no jogo fica em `js/cardapio.js`. Os preços vieram do delivery do Sat's no Rappi (novembro de 2026) e são só uma referência.
 
 ## Onde mexer
 

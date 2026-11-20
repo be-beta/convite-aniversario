@@ -96,6 +96,12 @@ export const sfx = {
     for (let i = 0; i < 4; i++) ruido(0.09, { vol: 0.07, freq: 900 - i * 120, q: 6, atraso: i * 0.08 });
     tom(2600, 0.2, { tipo: 'sine', vol: 0.05, atraso: 0.38 });
   },
+  // chopp saindo da torneira, com um "tink" no final
+  chopeira() {
+    ruido(1.7, { vol: 0.05, freq: 1900, q: 0.7, ataque: 0.08 });
+    ruido(1.5, { vol: 0.03, freq: 700, q: 1.2, ataque: 0.2, atraso: 0.2 });
+    tom(2500, 0.2, { tipo: 'sine', vol: 0.04, atraso: 1.75 });
+  },
   latido() {
     for (let i = 0; i < 2; i++) {
       tom(520, 0.12, { tipo: 'sawtooth', vol: 0.06, ate: 260, atraso: i * 0.2 });

@@ -5,8 +5,9 @@ export const FESTA = {
   aniversariante: 'Bernardo',
   dia: 'Sexta, 27 de novembro',
   horario: 'A partir das 17h',
-  local: "Galeto Sat's Botafogo, nº 212",
-  buscaMapa: "Galeto Sat's Botafogo, Rio de Janeiro",
+  bar: "Galeto Sat's",
+  local: "Galeto Sat's, Rua Real Grandeza, 212, Botafogo",
+  buscaMapa: "Galeto Sat's, Rua Real Grandeza, 212, Botafogo, Rio de Janeiro",
 };
 
 // Endereço do Web App do Google Apps Script (veja apps-script/README.md).

@@ -302,12 +302,10 @@ async function falarCarlos(j) {
     await j.fala('carlos', sorteio(['Fala, campeão!', 'Manda, campeão.', 'Opa! O que vai ser?']));
   }
   await menu(j, 'carlos', () => [
-    !f.polentaPedida && { t: 'Uma polenta, por favor.', fn: async () => {
-      await j.fala('carlos', 'Uma polenta! Já vai, campeão.');
-      f.polentaPedida = true;
-      f.polentaT = j.t;
-      f.polentaN = j.n.interacoes;
-      return 'sair';
+    { t: 'Quero pedir comida.', fn: () => pedirComida(j) },
+    { t: 'Posso ver o cardápio?', fn: async () => {
+      await j.fala('carlos', 'Claro, campeão. Tá aqui.');
+      await j.abrirCardapio();
     } },
     f.polentaPedida && !f.polentaChegou && { t: 'Cadê minha polenta?', fn: async () => {
       f.cobrancas = (f.cobrancas || 0) + 1;
@@ -320,8 +318,10 @@ async function falarCarlos(j) {
       const b = j.ent.bernardo;
       const volta = { x: 452, y: 172 };
       j.foco = c;
+      await encherNaChopeira(j, true);
       await j.andar(c, b.x + 14, b.y + 2);
       j.olhar(c, b);
+      c.segurando = null;
       sfx.copo();
       f.copoCheio = true;
       copoBernardo(j);
@@ -336,14 +336,106 @@ async function falarCarlos(j) {
     } },
     !f.chopp && { t: 'Um chopp pra mim.', fn: async () => {
       await j.fala('carlos', 'Já vai, campeão!');
-      await j.espera(600);
+      const p = j.jogador;
+      j.foco = c;
+      await encherNaChopeira(j, true);
+      await j.andar(c, p.x + (p.x < c.x ? 15 : -15), p.y);
+      j.olhar(c, p); j.olhar(p, c);
+      c.segurando = null;
       sfx.copo();
       f.chopp = true;
       f.bebeuT = j.t;
-      if (!f.polenta) j.jogador.segurando = 'copoCheio';
-      await j.narra('Um chopp aparece na sua mão. Gelado, com colarinho. O Rio funciona.');
+      p.copoT = null;
+      if (!f.polenta) p.segurando = 'copoCheio';
+      j.foco = null;
+      await j.narra('Gelado, com colarinho. O Rio funciona.');
     } },
   ], 'Nada não, valeu.');
+}
+
+// O garçom vai até a chopeira, o copo aparece embaixo da torneira e enche.
+async function encherNaChopeira(j, peloRoteiro = false) {
+  const f = j.f, c = j.ent.carlos;
+  const ok = await j.andar(c, 442, 165);
+  if (!ok || f.festa || (!peloRoteiro && j.ocupado)) return false;
+  c.face = -1;
+  const marca = { t0: j.t, dono: peloRoteiro ? 'roteiro' : 'servico' };
+  f.enchendo = marca;
+  if (j.cenaAtual === 'corredor') sfx.chopeira();
+  await j.espera(1900);
+  if (f.enchendo === marca) f.enchendo = null;
+  if (!peloRoteiro && (j.ocupado || f.festa)) return false;
+  c.segurando = 'copoCheio';
+  return true;
+}
+
+// Serviço de fundo: enche na chopeira e leva até quem pediu. Para se o convidado chamar o garçom.
+async function servirChopp(j, alvo) {
+  const f = j.f, c = j.ent.carlos;
+  let entregou = false;
+  try {
+    if (!(await encherNaChopeira(j))) return;
+    const lado = alvo.x > c.x ? -1 : 1;
+    const ok = await j.andar(c, Math.max(14, Math.min(546, alvo.x + lado * 15)), Math.min(196, alvo.y + 2));
+    if (!ok || f.festa) return;
+    j.olhar(c, alvo);
+    c.segurando = null;
+    alvo.segurando = 'copoCheio';
+    alvo.querChopp = false;
+    alvo.copoT = 30000 + Math.random() * 30000;
+    entregou = true;
+    if (j.cenaAtual === 'corredor' && Math.abs(j.jogador.x - alvo.x) < 170) sfx.copo();
+    j.balao('carlos', sorteio(['Tá na mão!', 'Gelado, campeão.', 'Já veio, campeão!']), 1600);
+    await j.espera(900);
+    if (!j.ocupado && !f.festa) {
+      const ok2 = await j.andar(c, 452, 172);
+      if (ok2) c.face = -1;
+    }
+  } finally {
+    if (!entregou && c.segurando === 'copoCheio') c.segurando = null;
+    if (f.enchendo && f.enchendo.dono === 'servico') f.enchendo = null;
+    f.serv = null;
+  }
+}
+
+const COMIDAS = [
+  { id: 'polenta', t: 'Polenta frita', carlos: 'Uma polenta! Já vai, campeão.' },
+  { id: 'galeto', t: 'Galeto na brasa', carlos: 'Galeto! O carro-chefe da casa. Já vai, campeão.',
+    narra: 'Um galeto dourado chega cheirando a alho e some em minutos. Ninguém sabe quem comeu mais.' },
+  { id: 'pao', t: 'Pão de alho', carlos: 'Pão de alho saindo!',
+    narra: 'O pão de alho chega crocante. Agora você e o pão de alho têm o mesmo cheiro.' },
+  { id: 'coracao', t: 'Coração de galinha', carlos: 'Coraçãozinho no espeto. Já vai!',
+    narra: 'Os coraçõezinhos somem antes de esfriar. No Sat\'s eles não têm tempo de esfriar.' },
+  { id: 'linguica', t: 'Linguiça na brasa', carlos: 'Linguiça! Boa pedida, campeão.',
+    narra: 'A linguiça chega estalando. O Caramelo sentiu o cheiro lá da calçada.' },
+];
+
+async function pedirComida(j) {
+  const f = j.f;
+  await j.fala('carlos', 'Vai comer o quê, campeão?');
+  const r = await j.escolha([
+    ...COMIDAS.map((c) => ({ t: c.t, v: c.id })),
+    { t: 'Deixa eu pensar mais um pouco.', v: null },
+  ]);
+  if (!r) return;
+  const c = COMIDAS.find((x) => x.id === r);
+  if (c.id === 'polenta') {
+    if (f.polentaPedida && !f.polenta) { await j.fala('carlos', 'A sua polenta já tá saindo, campeão. Já vai!'); return 'sair'; }
+    await j.fala('carlos', c.carlos);
+    if (!f.polentaPedida) {
+      f.polentaPedida = true;
+      f.polentaT = j.t;
+      f.polentaN = j.n.interacoes;
+    } else {
+      await j.narra('Mais uma polenta chega e desaparece. Essa não era o bolo.');
+    }
+    return 'sair';
+  }
+  await j.fala('carlos', c.carlos);
+  if (f.missao && !f.polentaPedida) await j.fala('carlos', 'Ah, e se for pra vela ficar em pé, o ideal é polenta, viu?');
+  await j.espera(500);
+  await j.narra(c.narra);
+  return 'sair';
 }
 
 async function ofertaSerjao(j) {
@@ -758,7 +850,7 @@ export const roteiro = {
     O({ id: 'janela', cena: 'calcada', nome: 'Janela do salão', rect: { x: 164, y: 104, w: 30, h: 46 }, ir: { x: 180, y: 176 },
       usar: (j2) => j2.narra('Lá dentro, o salão principal. Hoje a noite é no corredor.') });
     O({ id: 'numero', cena: 'calcada', nome: 'Número 212', rect: { x: 220, y: 132, w: 22, h: 12 }, ir: { x: 230, y: 176 },
-      usar: (j2) => j2.narra('Número 212. Anote, caso o GPS resolva brincar com você na sexta.') });
+      usar: (j2) => j2.narra('Rua Real Grandeza, 212. Anote, caso o GPS resolva brincar com você na sexta.') });
     O({ id: 'arvore', cena: 'calcada', nome: 'Amendoeira', rect: { x: 4, y: 0, w: 60, h: 40 }, ir: { x: 30, y: 176 },
       usar: (j2) => j2.narra('Uma amendoeira carioca. Já viu de tudo e não conta nada pra ninguém.') });
     // corredor
@@ -974,20 +1066,7 @@ export const roteiro = {
       return;
     }
     f.serv = alvo.id;
-    const lado = alvo.x > c.x ? -1 : 1;
-    j.andar(c, Math.max(14, Math.min(546, alvo.x + lado * 15)), Math.min(196, alvo.y + 2)).then((ok) => {
-      if (!ok || f.festa) { f.serv = null; return; }
-      j.olhar(c, alvo);
-      alvo.segurando = 'copoCheio';
-      alvo.querChopp = false;
-      alvo.copoT = 30000 + Math.random() * 30000;
-      if (j.cenaAtual === 'corredor' && Math.abs(j.jogador.x - alvo.x) < 170) sfx.servir();
-      j.balao('carlos', sorteio(['Tá na mão!', 'Gelado, campeão.', 'Já veio, campeão!']), 1600);
-      setTimeout(() => {
-        if (j.ocupado || f.festa) { f.serv = null; return; }
-        j.andar(c, 452, 172).then(() => { c.face = -1; f.serv = null; });
-      }, 900);
-    });
+    servirChopp(j, alvo);
   },
 
   baloesAmbiente(j) {
@@ -1053,6 +1132,11 @@ export const roteiro = {
     const out = [];
     if (f.polentaChegou && !f.polenta) out.push({ cena: 'corredor', y: MESA.y + 0.5, desenhar: (g) => g.drawImage(ITENS.polenta.cv, MESA.x - 1, MESA.y - 41) });
     if (f.wc === 3) out.push({ cena: 'corredor', y: 157, desenhar: (g, j2, t) => { g.drawImage(ITENS.moeda.cv, 512, 152); if (Math.floor(t / 400) % 3 === 0) { g.fillStyle = '#fffbe0'; g.fillRect(516, 151, 1, 1); } } });
+    // copo enchendo embaixo da torneira da chopeira
+    if (f.enchendo) {
+      const p = Math.min(1, (j.t - f.enchendo.t0) / 1700);
+      out.push({ cena: 'corredor', y: 110, desenhar: (g) => desenharCopoNaChopeira(g, p) });
+    }
     // chama da vela na festa
     if (f.velaAcesa) {
       const p = j.jogador;
@@ -1061,6 +1145,22 @@ export const roteiro = {
     return out;
   },
 };
+
+function desenharCopoNaChopeira(g, p) {
+  const x = 434, y = 99; // copo de 5x9 em cima do balcão de mármore, embaixo da torneira
+  const px = (cx, cy, w, h, c) => { g.fillStyle = c; g.fillRect(cx, cy, w, h); };
+  px(x, y, 1, 9, '#2a1a1f'); px(x + 6, y, 1, 9, '#2a1a1f'); px(x, y + 9, 7, 1, '#2a1a1f');
+  px(x + 1, y, 5, 9, '#e9f1f2');
+  const cheio = Math.round(p * 8);
+  if (cheio > 0) px(x + 1, y + 9 - cheio, 5, cheio, '#e8a33a');
+  if (cheio > 1) px(x + 2, y + 9 - cheio + 1, 1, cheio - 1, '#f4c66a');
+  if (p > 0.55) {
+    const espuma = p > 0.9 ? 2 : 1;
+    px(x + 1, y + 9 - cheio - espuma + 1, 5, espuma, '#fbf6ea');
+  }
+  // fio de chopp saindo da torneira
+  if (p < 1) px(x + 3, 94, 1, Math.max(1, y + 9 - cheio - 94), '#f0b04a');
+}
 
 function desenharMesa(g) {
   const { x, y } = MESA;

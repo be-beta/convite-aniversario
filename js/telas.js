@@ -2,11 +2,12 @@
 
 import { painel, botao, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
 import { C } from './paleta.js';
-import { CRIADOR, selecaoAleatoria, montarLook, campoDoCriador } from './personagens.js';
+import { CRIADOR, selecaoAleatoria, montarLook, campoDoCriador, codigoDoPersonagem } from './personagens.js';
 import { buildCharacter, frameCanvas } from './sprites.js';
 import { FESTA } from './config.js';
 import { enviarRSVP } from './rsvp.js';
 import { iniciarSom } from './audio.js';
+import { CARDAPIO, FONTE_CARDAPIO } from './cardapio.js';
 
 export const CHEGADAS = [
   {
@@ -52,6 +53,11 @@ function coluna(j, ctx, largura, blocos) {
     hs = blocos.map((b) => b.h(innerW));
     total = hs.reduce((a, b) => a + b, 0) * u + 2 * pad;
   }
+  // ainda não coube: encolhe os espaços entre os blocos
+  if (total > j.H - 8 * u) {
+    hs = hs.map((h, i) => (blocos[i].espaco ? Math.min(h, 2) : h));
+    total = hs.reduce((a, b) => a + b, 0) * u + 2 * pad;
+  }
   const x = Math.round((j.W - w) / 2);
   const y = Math.round(Math.max(4 * u, (j.H - total) / 2));
   painel(ctx, x, y, w, total, u);
@@ -59,7 +65,7 @@ function coluna(j, ctx, largura, blocos) {
   blocos.forEach((b, i) => { b.draw(x + pad, cy, w - 2 * pad, innerW); cy += hs[i] * u; });
 }
 
-const espaco = (n) => ({ h: () => n, draw: () => {} });
+const espaco = (n) => ({ h: () => n, draw: () => {}, espaco: true });
 
 function texto(j, ctx, str, { cor = C.uiTexto, escala = 1, centro = false, sombra = C.uiSombra } = {}) {
   const s = j.fmt(str);
@@ -323,6 +329,7 @@ function telaCriador(j, ctx, t) {
         if (j.iniciando) return;
         j.iniciando = true;
         j.dados.look = montarLook(cr.sel);
+        j.dados.codigo = codigoDoPersonagem(cr.sel);
         await j.fade(1, 400);
         j.roteiro.comecar(j);
       });
@@ -352,7 +359,7 @@ function telaConvite(j, ctx) {
   const cv = j.convite || (j.convite = { etapa: 'pergunta' });
   const ch = j.dados.chegada || CHEGADAS[1];
   const titulo = [
-    texto(j, ctx, 'A NOITE DO BERNARDO', { cor: C.uiDestaque, escala: (j.W / j.u) >= 260 ? 2 : 1, centro: true, sombra: C.bordo }),
+    texto(j, ctx, 'A NOITE DO BERNARDO', { cor: C.uiDestaque, escala: (j.W / j.u) >= 260 && (j.H / j.u) >= 250 ? 2 : 1, centro: true, sombra: C.bordo }),
     espaco(6),
   ];
   const infos = [
@@ -366,7 +373,7 @@ function telaConvite(j, ctx) {
     cv.chave = chave;
     cv.status = 'enviando';
     j.dados.resposta = chave;
-    cv.status = await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})` });
+    cv.status = await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})`, personagem: j.dados.codigo || '' });
   };
   if (cv.etapa === 'pergunta') {
     coluna(j, ctx, 250, [
@@ -378,6 +385,7 @@ function telaConvite(j, ctx) {
       bt(j, ctx, 'Tô dentro!', () => responder('sim'), { destaque: true }),
       bt(j, ctx, 'Vou tentar aparecer', () => responder('talvez')),
       bt(j, ctx, 'Não vou conseguir', () => responder('nao')),
+      { ...bt(j, ctx, "Ver o cardápio do Sat's", () => j.abrirCardapio()), opcional: true },
     ]);
     return;
   }
@@ -397,7 +405,80 @@ function telaConvite(j, ctx) {
     espaco(6),
     cv.status === 'erro' ? bt(j, ctx, 'Tentar de novo', () => responder(cv.chave), { destaque: true }) : null,
     cv.chave !== 'nao' ? bt(j, ctx, 'Ver no mapa', () => window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(FESTA.buscaMapa), '_blank', 'noopener')) : null,
+    cv.chave !== 'nao' ? { ...bt(j, ctx, "Ver o cardápio do Sat's", () => j.abrirCardapio()), opcional: true } : null,
     bt(j, ctx, 'Mudar resposta', () => { cv.etapa = 'pergunta'; }),
     bt(j, ctx, 'Jogar de novo', () => location.reload()),
   ].filter(Boolean));
+}
+
+// ---------------------------------------------------------------- cardápio (janela por cima de tudo)
+
+export function desenharCardapio(j, ctx) {
+  const u = j.u;
+  const cd = j.cardapio;
+  R(ctx, 0, 0, j.W, j.H, 'rgba(18,9,11,0.7)');
+  j.hit({ x: 0, y: 0, w: j.W, h: j.H }, () => {});
+  j.hits[j.hits.length - 1].semSom = true;
+
+  const w = Math.min(j.W - 8 * u, 260 * u);
+  const pad = 10 * u;
+  const innerW = Math.floor((w - 2 * pad) / u);
+  const nota = wrap(FONTE_CARDAPIO, innerW);
+  const fixo = 14 + 14 + nota.length * LINE_H + 8 + 20;
+  const maxH = Math.floor(j.H / u) - 8;
+  const espacoItens = Math.max(44, Math.min(130, maxH - fixo - 20));
+
+  // monta as páginas (uma categoria pode ocupar mais de uma página)
+  if (!cd.paginas || cd.larg !== innerW || cd.alt !== espacoItens) {
+    cd.larg = innerW; cd.alt = espacoItens;
+    cd.paginas = [];
+    for (const cat of CARDAPIO) {
+      let pag = { categoria: cat.categoria, itens: [], h: 0 };
+      for (const [nome, preco] of cat.itens) {
+        const pw = measure('R$ ' + preco);
+        const linhas = wrap(nome, innerW - pw - 8);
+        const h = linhas.length * 11;
+        if (pag.h + h > espacoItens && pag.itens.length) { cd.paginas.push(pag); pag = { categoria: cat.categoria, itens: [], h: 0 }; }
+        pag.itens.push({ linhas, preco: 'R$ ' + preco, h });
+        pag.h += h;
+      }
+      cd.paginas.push(pag);
+    }
+    cd.pag = Math.min(cd.pag || 0, cd.paginas.length - 1);
+  }
+  const pg = cd.paginas[cd.pag];
+  const altura = (fixo + espacoItens) * u + 2 * pad;
+  const x = Math.round((j.W - w) / 2);
+  const y = Math.round(Math.max(4 * u, (j.H - altura) / 2));
+  painel(ctx, x, y, w, altura, u, { fundo: '#f4ead2', borda: C.bordo });
+  let cy = y + pad - 2 * u;
+  drawText(ctx, 'CARDÁPIO DO SAT\'S', x + w / 2, cy, u, C.bordo, null, 'center');
+  cy += 14 * u;
+  drawText(ctx, pg.categoria, x + pad, cy, u, C.contorno);
+  drawText(ctx, `${cd.pag + 1}/${cd.paginas.length}`, x + w - pad, cy, u, '#8a7a66', null, 'right');
+  R(ctx, x + pad, cy + 11 * u, w - 2 * pad, u, C.bordo);
+  cy += 14 * u;
+  for (const it of pg.itens) {
+    it.linhas.forEach((l, i) => drawText(ctx, l, x + pad, cy + i * 11 * u, u, C.contorno));
+    const ultima = it.linhas[it.linhas.length - 1];
+    const ly = cy + (it.linhas.length - 1) * 11 * u;
+    const px = x + w - pad - measure(it.preco) * u;
+    for (let dx = x + pad + (measure(ultima) + 3) * u; dx < px - 3 * u; dx += 3 * u) R(ctx, dx, ly + 7 * u, u, u, '#b8a68c');
+    drawText(ctx, it.preco, px, ly, u, C.bordo);
+    cy += it.h * u;
+  }
+  cy = y + pad - 2 * u + (14 + 14 + espacoItens) * u + 4 * u;
+  nota.forEach((l, i) => drawText(ctx, l, x + pad, cy + i * LINE_H * u, u, '#8a7a66'));
+  cy += nota.length * LINE_H * u + 6 * u;
+  const bw = Math.floor((w - 2 * pad - 8 * u) / 3);
+  const hov = (r) => j.mouse && j.dentro(r, j.mouse.x, j.mouse.y);
+  const r1 = { x: x + pad, y: cy, w: bw, h: 16 * u };
+  const r2 = { x: x + pad + bw + 4 * u, y: cy, w: bw, h: 16 * u };
+  const r3 = { x: x + pad + 2 * (bw + 4 * u), y: cy, w: bw, h: 16 * u };
+  botao(ctx, r1.x, r1.y, r1.w, r1.h, '< Volta', u, { ativo: cd.pag > 0, hover: hov(r1) });
+  botao(ctx, r2.x, r2.y, r2.w, r2.h, 'Fechar', u, { destaque: true, hover: hov(r2) });
+  botao(ctx, r3.x, r3.y, r3.w, r3.h, 'Mais >', u, { ativo: cd.pag < cd.paginas.length - 1, hover: hov(r3) });
+  if (cd.pag > 0) j.hit(r1, () => { cd.pag--; });
+  j.hit(r2, () => j.fecharCardapio());
+  if (cd.pag < cd.paginas.length - 1) j.hit(r3, () => { cd.pag++; });
 }

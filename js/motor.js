@@ -6,9 +6,22 @@ import { highlightCanvas, C } from './paleta.js';
 import { painel, botao, rotulo, balao, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
 import { sfx, destravar, isMudo, setMudo, isMusica, setMusica } from './audio.js';
 import { ELENCO } from './personagens.js';
-import { desenharTela } from './telas.js';
+import { desenharTela, desenharCardapio } from './telas.js';
 
 const MIN_VIEW = 180;
+
+// Diamante sobre a cabeça do convidado (o = contorno, L = brilho, G = verde, D = sombra)
+const PLUMBOB = [
+  '...o...',
+  '..oLo..',
+  '.oLLGo.',
+  'oLLGGDo',
+  '.oGGDo.',
+  '.oGDDo.',
+  '..oDo..',
+  '..oDo..',
+  '...o...',
+];
 const agora = () => performance.now();
 
 export class Ent {
@@ -179,6 +192,28 @@ export class Jogo {
   }
 
   narra(texto) { return this.fala('narrador', texto); }
+
+  // primeira linha com pixel visível do sprite (para posicionar o diamante acima de chapéus e cabelos)
+  topoDoSprite(sp) {
+    if (sp._topo != null) return sp._topo;
+    const cv = sp.frames.idle0.cv;
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    sp._topo = 0;
+    for (let y = 0; y < cv.height && !sp._topo; y++) {
+      for (let x = 0; x < cv.width; x++) if (d[(y * cv.width + x) * 4 + 3]) { sp._topo = y; break; }
+    }
+    return sp._topo;
+  }
+
+  abrirCardapio() {
+    return new Promise((res) => { this.cardapio = { pag: 0, res }; });
+  }
+
+  fecharCardapio() {
+    const c = this.cardapio;
+    this.cardapio = null;
+    if (c && c.res) c.res();
+  }
   voce(texto) { return this.fala('voce', texto); }
 
   escolha(opcoes) {
@@ -581,6 +616,27 @@ export class Jogo {
       b.restore();
     }
 
+    // diamante verde em cima do personagem do convidado
+    const p = this.jogador;
+    if (p && p.cena === this.cenaAtual && p.visivel && (this.tela === 'jogo' || this.tela === 'convite')) {
+      const topo = this.topoDoSprite(p.sprite);
+      const bob = Math.round(Math.sin(t / 380) * 1.5);
+      const dx = Math.round(p.x) - 3 - cam;
+      const dy = Math.round(p.y + (p.dy || 0)) - GY + topo - 13 + bob;
+      b.globalCompositeOperation = 'lighter';
+      b.globalAlpha = 0.35;
+      b.drawImage(glowSprite(7, '#7dff7a'), dx + 3 - 7, dy + 4 - 7);
+      b.globalAlpha = 1;
+      b.globalCompositeOperation = 'source-over';
+      const cores = { o: '#0f3a14', L: '#c8ffb8', G: '#43d34c', D: '#1f8a2c' };
+      PLUMBOB.forEach((linha, yy) => {
+        for (let xx = 0; xx < linha.length; xx++) {
+          const c = cores[linha[xx]];
+          if (c) { b.fillStyle = c; b.fillRect(dx + xx, dy + yy, 1, 1); }
+        }
+      });
+    }
+
     // brilhos das luzes
     b.globalCompositeOperation = 'lighter';
     for (const gl of cena.brilhos(this.luz)) {
@@ -611,6 +667,7 @@ export class Jogo {
     this.desenharCena(t);
     if (this.tela === 'jogo') this.desenharHUD(t);
     else desenharTela(this, ctx, t);
+    if (this.cardapio) desenharCardapio(this, ctx, t);
     if (this.fadeA > 0) { ctx.fillStyle = `rgba(16,8,10,${Math.min(1, this.fadeA)})`; ctx.fillRect(0, 0, this.W, this.H); }
     this.posicionarCampo();
   }

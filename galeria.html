@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1c1214">
+  <title>Galeria de personagens</title>
+  <style>
+    html, body { margin: 0; background: #1c1214; color: #f4ead2; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 20px; color: #ffd27a; margin: 0 0 4px; letter-spacing: 1px; }
+    p { color: #c9b79a; line-height: 1.5; margin: 0 0 16px; font-size: 14px; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    input, textarea, button { font: inherit; font-size: 15px; border: 2px solid #140c0d; }
+    input, textarea { background: #fbf6ea; color: #2a1a1f; padding: 8px 10px; }
+    input { flex: 1 1 200px; }
+    textarea { width: 100%; box-sizing: border-box; min-height: 90px; }
+    button { background: #ffd27a; color: #2a1a1f; padding: 8px 16px; cursor: pointer; box-shadow: 2px 2px 0 #140c0d; }
+    button:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #140c0d; }
+    details { margin: 8px 0 20px; color: #c9b79a; font-size: 14px; }
+    summary { cursor: pointer; }
+    #msg { min-height: 20px; color: #ffd27a; font-size: 14px; }
+    #resumo { color: #f4ead2; font-size: 14px; margin: 16px 0 8px; }
+    #grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 10px; }
+    #grade canvas { width: 100%; height: auto; image-rendering: pixelated; display: block; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GALERIA DE PERSONAGENS</h1>
+    <p>Os personagens que a galera montou no convite. Só funciona com a chave definida no Apps Script da planilha.</p>
+    <form id="form-chave">
+      <input id="chave" type="password" placeholder="Chave da galeria" autocomplete="current-password" aria-label="Chave da galeria">
+      <button type="submit">Ver personagens</button>
+    </form>
+    <details>
+      <summary>Ou cole as colunas da planilha</summary>
+      <p>Selecione na planilha as colunas Nome, Resposta e Personagem, copie e cole aqui.</p>
+      <textarea id="colar" aria-label="Linhas copiadas da planilha"></textarea>
+      <button id="botao-colar" type="button">Montar galeria</button>
+    </details>
+    <div id="msg" role="status"></div>
+    <div id="resumo"></div>
+    <div id="grade"></div>
+  </main>
+  <script type="module" src="js/galeria.js"></script>
+</body>
+</html>
