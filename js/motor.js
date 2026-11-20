@@ -96,13 +96,15 @@ export class Jogo {
     let S;
     if (retrato) {
       // em pé: jogo em cima, textos embaixo (como emulador de console)
+      // um pouco mais de zoom no celular: personagens maiores e mais fáceis de tocar
+      // (escala em passos de 0,25 para o jogo ocupar ~60% da tela e sobrar só o espaço das falas)
       this.modo = 'baixo';
-      S = Math.max(1, Math.min(Math.floor((this.H - 118 * u) / SCENE_H), Math.floor(this.W / MIN_VIEW)));
+      S = Math.min(this.W / 150, (this.H - 170 * u) / SCENE_H);
+      S = Math.max(1, Math.floor(S * 4) / 4);
       this.maxViewW = Math.floor(this.W / S);
-      this.offY = Math.max(0, Math.floor((this.H - S * SCENE_H - 190 * u) / 2));
     } else {
-      // deitado / computador: jogo à esquerda, textos numa coluna à direita
-      this.painelW = Math.min(240 * u, Math.floor(this.W * 0.42));
+      // deitado / computador: jogo à esquerda, textos numa coluna estreita à direita
+      this.painelW = Math.min(210 * u, Math.max(Math.floor(this.W * 0.36), 162 * u));
       this.areaW = this.W - this.painelW;
       S = Math.min(Math.floor(this.H / SCENE_H), Math.floor(this.areaW / MIN_VIEW));
       if (S >= 1) {
@@ -123,7 +125,7 @@ export class Jogo {
   get viewW() { return Math.min(this.maxViewW, this.cena.w); }
 
   get sceneRect() {
-    const w = this.viewW * this.S, h = SCENE_H * this.S;
+    const w = Math.round(this.viewW * this.S), h = Math.round(SCENE_H * this.S);
     if (this.modo === 'lado') return { x: Math.floor((this.areaW - w) / 2), y: Math.floor((this.H - h) / 2), w, h };
     return { x: Math.floor((this.W - w) / 2), y: this.offY, w, h };
   }
@@ -131,7 +133,7 @@ export class Jogo {
   get uiRect() {
     if (this.modo === 'lado') return { x: this.areaW, y: 0, w: this.W - this.areaW, h: this.H };
     if (this.sobreposto) return { x: 0, y: 0, w: this.W, h: this.H };
-    const y = SCENE_H * this.S + this.offY;
+    const y = Math.round(SCENE_H * this.S) + this.offY;
     return { x: 0, y, w: this.W, h: this.H - y };
   }
 
@@ -767,6 +769,33 @@ export class Jogo {
       R(ctx, x + u, by + u, tw - 2 * u, bs - 2 * u, 'rgba(43,29,26,0.92)');
       drawText(ctx, 'MISSÃO', x + 5 * u, by + 3 * u, u, C.creme);
       this.hit({ x, y: by, w: tw, h: bs }, () => { this.painelAberto = !this.painelAberto; });
+    }
+
+    // setas para andar quando ainda tem cenário escondido daquele lado
+    if (!this.dialogo && !this.ocupado && this.jogador && this.fadeA === 0 && !this.cardapio) {
+      const cena = this.cena, A = cena.andar, p = this.jogador, vw = this.viewW;
+      const aw = 14 * u, ah = 24 * u;
+      const ay = Math.round(sr.y + sr.h * 0.5 - ah / 2);
+      const balanco = Math.round((Math.sin(t / 260) * 0.5 + 0.5) * 2) * u;
+      const seta = (dir) => {
+        const x = dir < 0 ? sr.x + 3 * u - balanco : sr.x + sr.w - aw - 3 * u + balanco;
+        R(ctx, x + u, ay + u, aw, ah, 'rgba(10,5,6,0.35)');
+        R(ctx, x, ay, aw, ah, 'rgba(28,18,20,0.72)');
+        const base = dir < 0 ? x + 9 * u : x + 4 * u;
+        const cy = ay + Math.floor(ah / 2);
+        for (let i = 0; i < 6; i++) {
+          const h = (2 * (5 - i) + 1) * u;
+          R(ctx, base + dir * i * u, cy - (5 - i) * u, u, h, C.uiDestaque);
+        }
+        this.hit({ x: x - 4 * u, y: ay - 6 * u, w: aw + 8 * u, h: ah + 12 * u }, () => {
+          this.pendente = null;
+          const tx = Math.max(A.x0, Math.min(A.x1, p.x + dir * vw * 0.6));
+          this.andar(p, tx, p.y);
+          this.marcaToque = { x: tx, y: p.y, ate: this.t + 400 };
+        });
+      };
+      if (Math.round(this.camX) > 1 && p.x > A.x0 + 12) seta(-1);
+      if (Math.round(this.camX) < cena.w - vw - 1 && p.x < A.x1 - 12) seta(1);
     }
 
     // avisos (topo)

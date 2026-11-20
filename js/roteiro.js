@@ -417,7 +417,7 @@ async function pedirComida(j) {
     ...COMIDAS.map((c) => ({ t: c.t, v: c.id })),
     { t: 'Deixa eu pensar.', v: null },
   ]);
-  if (!r) return;
+  if (!r) { await j.fala('carlos', 'Sem pressa, campeão.'); return; }
   const c = COMIDAS.find((x) => x.id === r);
   if (c.id === 'polenta') {
     if (f.polentaPedida && !f.polenta) { await j.fala('carlos', 'A sua polenta já tá saindo, campeão. Já vai!'); return 'sair'; }

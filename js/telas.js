@@ -373,7 +373,9 @@ function telaConvite(j, ctx) {
     cv.chave = chave;
     cv.status = 'enviando';
     j.dados.resposta = chave;
-    cv.status = await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})`, personagem: j.dados.codigo || '' });
+    // nomes de teste não vão para a planilha (para testar o jogo sem registrar)
+    const ehTeste = /^(test|teste)$/i.test((j.dados.nome || '').trim());
+    cv.status = ehTeste ? 'teste' : await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})`, personagem: j.dados.codigo || '' });
   };
   if (cv.etapa === 'pergunta') {
     coluna(j, ctx, 250, [

@@ -365,7 +365,7 @@ function paint(L, pose) {
       for (let x = 2; x < 10; x += 3) g.px(hx + x, headTop + 1, hcL);
       break;
     case 'black':
-      top(0, 1, 12, 2); top(0, 3, 3, 3); g.px(hx + 5, headTop + 1, hcL);
+      top(0, 0, 12, 3); top(0, 3, 3, 3); g.px(hx + 5, headTop + 1, hcL);
       break;
     case 'calvo':
       top(0, 4, 2, 4); top(2, 3, 1, 2);
