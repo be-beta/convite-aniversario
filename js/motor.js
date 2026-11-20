@@ -3,7 +3,7 @@
 import { SCENE_H, criarCenarios, glowSprite, LUZES } from './cenarios.js';
 import { buildCharacter, buildDog, buildItems, frameCanvas, ITENS, CX, GY, FW, DOG } from './sprites.js';
 import { highlightCanvas, C } from './paleta.js';
-import { painel, botao, rotulo, balao, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
+import { painel, botao, rotulo, balao, balaoFala, icone, R, drawText, measure, wrap, LINE_H } from './ui.js';
 import { sfx, destravar, isMudo, setMudo, isMusica, setMusica } from './audio.js';
 import { ELENCO } from './personagens.js';
 import { desenharTela, desenharCardapio } from './telas.js';
@@ -99,7 +99,7 @@ export class Jogo {
       // um pouco mais de zoom no celular: personagens maiores e mais fáceis de tocar
       // (escala em passos de 0,25 para o jogo ocupar ~60% da tela e sobrar só o espaço das falas)
       this.modo = 'baixo';
-      S = Math.min(this.W / 150, (this.H - 170 * u) / SCENE_H);
+      S = Math.min(this.W / 150, (this.H - 130 * u) / SCENE_H);
       S = Math.max(1, Math.floor(S * 4) / 4);
       this.maxViewW = Math.floor(this.W / S);
     } else {
@@ -717,7 +717,7 @@ export class Jogo {
 
     // balões
     for (const e of Object.values(this.ent)) {
-      if (e.cena !== this.cenaAtual || !e.visivel || !e.balaoTxt || e.balaoAte < this.t) continue;
+      if (this.dialogo || e.cena !== this.cenaAtual || !e.visivel || !e.balaoTxt || e.balaoAte < this.t) continue;
       const topo = e.sprite.dog ? e.y - 18 : e.y - (GY - e.sprite.frames.idle0.meta.head.y) - 1;
       const p = this.mundoParaTela(e.x, topo);
       balao(ctx, p.x, p.y, e.balaoTxt, u, lim, { pensamento: e.pensa });
@@ -808,10 +808,47 @@ export class Jogo {
       drawText(ctx, a.texto, x + 15 * u, y + 2 * u, u, C.uiTexto);
     });
 
-    // parte de baixo: diálogo ou painel da missão
-    if (this.dialogo) this.desenharDialogo(t);
-    else if (!this.sobreposto) this.desenharPainelMissao(this.uiRect, false);
+    // conversa: falas de personagens em balão sobre a cabeça; a caixa fica só para respostas e narração
+    const d = this.dialogo;
+    if (d) {
+      const quemFala = d.tipo === 'fala' ? d.quem : (d.contexto && d.contexto.quem);
+      const textoBalao = d.tipo === 'fala' ? d.texto : (d.contexto && d.contexto.texto);
+      const e = this.entNaTela(quemFala);
+      if (e && textoBalao) {
+        const cab = this.cabecalho(quemFala);
+        const nome = cab.papel && quemFala !== 'voce' ? `${cab.nome} · ${cab.papel}` : cab.nome;
+        const topo = e.sprite.dog ? e.y - 18 : e.y - (GY - e.sprite.frames.idle0.meta.head.y) - 1;
+        const p = this.mundoParaTela(e.x, topo);
+        const maxW = Math.max(80, Math.min(150, Math.floor(sr.w / u) - 18));
+        balaoFala(ctx, p.x, p.y, {
+          nome, texto: textoBalao, mostrado: d.tipo === 'fala' ? d.mostrado : Infinity,
+          u, limites: lim, maxW, seta: d.tipo === 'fala' && d.mostrado >= d.texto.length, t,
+        });
+        if (d.tipo === 'fala') {
+          if (!this.sobreposto) this.desenharPainelMissao(this.uiRect, false);
+          this.hit({ x: 0, y: 0, w: this.W, h: this.H }, () => this.avancar());
+          this.hits[this.hits.length - 1].semSom = true;
+        } else {
+          this.desenharDialogo(t, true);
+        }
+        return;
+      }
+      this.desenharDialogo(t, false);
+      return;
+    }
+    if (!this.sobreposto) this.desenharPainelMissao(this.uiRect, false);
     else if (this.painelAberto) this.desenharPainelMissao(this.uiRect, true);
+  }
+
+  // personagem que está falando, se ele estiver visível na tela agora
+  entNaTela(quem) {
+    if (!quem || quem === 'narrador') return null;
+    const e = quem === 'voce' ? this.jogador : this.ent[quem];
+    if (!e || e.cena !== this.cenaAtual || !e.visivel) return null;
+    const p = this.mundoParaTela(e.x, e.y);
+    const r = this.sceneRect;
+    if (p.x < r.x + 4 * this.u || p.x > r.x + r.w - 4 * this.u) return null;
+    return e;
   }
 
   cabecalho(quem) {
@@ -822,7 +859,7 @@ export class Jogo {
     return { nome: e.nome, papel: e.papel, e };
   }
 
-  desenharDialogo(t) {
+  desenharDialogo(t, soRespostas = false) {
     const ctx = this.ctx, u = this.u;
     const d = this.dialogo;
     const area = this.uiRect;
@@ -831,18 +868,24 @@ export class Jogo {
     const bx = Math.round(area.x + (area.w - bw) / 2);
     const pad = 8 * u;
     const innerW = Math.floor((bw - 2 * pad) / u);
-    const cab = this.cabecalho(d.tipo === 'escolha' && d.contexto ? d.contexto.quem : d.quem);
+    const cab = soRespostas ? null : this.cabecalho(d.tipo === 'escolha' && d.contexto ? d.contexto.quem : d.quem);
     const cabH = cab ? 22 * u : 0;
     let linhas = [], conteudoH = 0;
     let colunas = 1, rowH = 19, btnH = 16;
     const colW = Math.floor((bw - 2 * pad - 4 * u) / 2);
-    const alturaEscolha = () => linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + Math.ceil(d.opcoes.length / colunas) * rowH * u + 2 * u;
+    // respostas longas quebram em mais de uma linha dentro do botão
+    const linhasOp = d.tipo === 'escolha' ? d.opcoes.map((o) => wrap(o.t, innerW - 20)) : [];
+    const extraOp = (i) => (colunas === 1 ? (linhasOp[i].length - 1) * (LINE_H - 1) : 0);
+    const alturaOpcoes = () => (colunas === 1
+      ? linhasOp.reduce((s, l, i) => s + (rowH + extraOp(i)) * u, 0)
+      : Math.ceil(d.opcoes.length / 2) * rowH * u);
+    const alturaEscolha = () => linhas.length * LINE_H * u + (linhas.length ? 5 * u : 0) + alturaOpcoes() + 2 * u;
     if (d.tipo === 'fala') {
       if (!d.linhas || d.larg !== innerW) { d.linhas = wrap(d.texto, innerW); d.larg = innerW; }
       linhas = d.linhas;
       conteudoH = linhas.length * LINE_H * u + 8 * u;
     } else {
-      linhas = d.contexto ? wrap(d.contexto.texto, innerW) : [];
+      linhas = d.contexto && !soRespostas ? wrap(d.contexto.texto, innerW) : [];
       conteudoH = alturaEscolha();
     }
     let bh = pad + cabH + conteudoH + 4 * u;
@@ -895,13 +938,15 @@ export class Jogo {
       const cor = d.contexto && d.contexto.quem === 'narrador' ? '#e9d9b5' : C.uiSuave;
       for (const l of linhas) { drawText(ctx, l, bx + pad, y, u, cor, C.uiSombra); y += LINE_H * u; }
       if (linhas.length) y += 5 * u;
+      let yy = y;
       d.opcoes.forEach((o, i) => {
         const col = i % colunas, lin = Math.floor(i / colunas);
         const r = colunas === 1
-          ? { x: bx + pad, y: y + i * rowH * u, w: bw - 2 * pad, h: btnH * u }
+          ? { x: bx + pad, y: yy, w: bw - 2 * pad, h: (btnH + extraOp(i)) * u }
           : { x: bx + pad + col * (colW + 4 * u), y: y + lin * rowH * u, w: colW, h: btnH * u };
+        if (colunas === 1) yy += (rowH + extraOp(i)) * u;
         const hov = this.mouse && this.dentro(r, this.mouse.x, this.mouse.y);
-        botao(ctx, r.x, r.y, r.w, r.h, o.t, u, { alinhar: 'left', numero: i + 1, hover: hov });
+        botao(ctx, r.x, r.y, r.w, r.h, colunas === 1 ? linhasOp[i] : o.t, u, { alinhar: 'left', numero: i + 1, hover: hov });
         this.hit(r, () => this.escolher(i));
         this.hits[this.hits.length - 1].semSom = true;
       });
@@ -918,15 +963,23 @@ export class Jogo {
     const pad = 8 * u;
     const innerW = Math.floor((bw - 2 * pad) / u);
     const dica = info.dica ? wrap(info.dica, innerW) : [];
-    const itensH = info.itens.length * 11 * u;
-    const bh = pad + 12 * u + itensH + (dica.length ? dica.length * LINE_H * u + 6 * u : 0) + pad - 2 * u;
+    let itens = info.itens;
+    let titulo = info.titulo;
+    const altura = () => pad + 12 * u + itens.length * 11 * u + (dica.length ? dica.length * LINE_H * u + 6 * u : 0) + pad - 2 * u;
+    let bh = altura();
     let by = flutuante ? Math.round(this.sceneRect.y + 24 * u) : (this.modo === 'lado' ? area.y + 16 * u : area.y + m);
+    // sem espaço para a lista inteira: mostra só o progresso e a próxima dica
+    if (!flutuante && by + bh > this.H - u && itens.length) {
+      titulo = `${titulo}  ${itens.filter((i) => i.feito).length}/${itens.length}`;
+      itens = [];
+      bh = altura();
+    }
     if (!flutuante && by + bh > this.H) by = this.H - bh - u;
     painel(ctx, bx, by, bw, bh, u, { fundo: '#2b1d1a' });
     let y = by + pad - 2 * u;
-    drawText(ctx, info.titulo, bx + pad, y, u, C.uiDestaque, C.uiSombra);
+    drawText(ctx, titulo, bx + pad, y, u, C.uiDestaque, C.uiSombra);
     y += 12 * u;
-    for (const it of info.itens) {
+    for (const it of itens) {
       const cx = bx + pad;
       R(ctx, cx, y + 2 * u, 7 * u, 7 * u, C.uiSombra);
       R(ctx, cx + u, y + 3 * u, 5 * u, 5 * u, it.feito ? '#4f7f3c' : '#4a332c');

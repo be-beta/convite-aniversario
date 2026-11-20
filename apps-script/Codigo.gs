@@ -31,7 +31,9 @@ function doPost(e) {
 // Lista de quem respondeu, para a galeria de personagens. Vale a última resposta de cada nome.
 function doGet(e) {
   const chave = (e && e.parameter && e.parameter.chave) || '';
-  if (CHAVE_GALERIA === 'TROQUE-ESTA-CHAVE' || chave !== CHAVE_GALERIA) return json({ erro: 'chave' });
+  // só funciona depois que a chave da linha 8 foi trocada por uma senha de verdade
+  const configurada = CHAVE_GALERIA.length >= 6 && CHAVE_GALERIA.indexOf('TROQUE') !== 0;
+  if (!configurada || chave !== CHAVE_GALERIA) return json({ erro: 'chave' });
   const linhas = abaRespostas().getDataRange().getValues().slice(1);
   const porNome = {};
   for (const [data, nome, resposta, chegada, personagem] of linhas) {

@@ -21,13 +21,14 @@ export function botao(ctx, x, y, w, h, texto, u, { ativo = true, destaque = fals
   R(ctx, x, y, w, h, C.uiSombra);
   R(ctx, x + u, y + u, w - 2 * u, h - 2 * u, base);
   R(ctx, x + u, y + h - 2 * u, w - 2 * u, u, 'rgba(0,0,0,0.12)');
-  const ty = y + Math.floor((h - 9 * u) / 2) - u;
+  const linhas = Array.isArray(texto) ? texto : [texto];
+  const ty = y + Math.floor((h - (linhas.length * (LINE_H - 1) - 2) * u) / 2) - 2 * u;
   const cor = ativo ? C.contorno : '#4a4038';
   if (alinhar === 'left') {
     let tx = x + 5 * u;
     if (numero != null) { drawText(ctx, String(numero), tx, ty, u, '#9b2f33'); tx += 9 * u; }
-    drawText(ctx, texto, tx, ty, u, cor);
-  } else drawText(ctx, texto, x + w / 2, ty, u, cor, null, 'center');
+    linhas.forEach((l, i) => drawText(ctx, l, tx, ty + i * (LINE_H - 1) * u, u, cor));
+  } else linhas.forEach((l, i) => drawText(ctx, l, x + w / 2, ty + i * (LINE_H - 1) * u, u, cor, null, 'center'));
   return { x, y, w, h };
 }
 
@@ -103,6 +104,50 @@ export function balao(ctx, sx, sy, texto, u, limites, { pensamento = false, cor 
     R(ctx, cx - u, y + h + u, u, u, cor); R(ctx, cx, y + h + u, u, 2 * u, C.contorno); R(ctx, cx - u, y + h + 2 * u, u, u, C.contorno);
   }
   linhas.forEach((l, i) => drawText(ctx, l, x + 4 * u, y + (i * (LINE_H - 1)) * u, u, C.contorno));
+}
+
+// Balão de conversa (fala de personagem): etiqueta com o nome, texto letra a letra e setinha de continuar.
+export function balaoFala(ctx, sx, sy, { nome, texto, mostrado = Infinity, u, limites, maxW = 140, seta = false, t = 0 }) {
+  const cor = '#fbf8ef';
+  const linhas = wrap(texto, maxW);
+  const tw = Math.max(...linhas.map(measure), nome ? measure(nome) - 6 : 0);
+  const w = (tw + 10) * u;
+  const h = (linhas.length * (LINE_H - 1) + 7) * u;
+  const tagH = nome ? 11 * u : 0;
+  let x = Math.round(sx - w / 2);
+  let y = Math.round(sy - h - 7 * u);
+  if (limites) {
+    x = Math.max(limites.x + u, Math.min(limites.x + limites.w - w - u, x));
+    y = Math.max(limites.y + tagH + u, y);
+  }
+  // corpo
+  R(ctx, x + 2 * u, y + 2 * u, w, h, 'rgba(10,5,6,0.35)');
+  R(ctx, x + u, y, w - 2 * u, h, C.contorno);
+  R(ctx, x, y + u, w, h - 2 * u, C.contorno);
+  R(ctx, x + u, y + u, w - 2 * u, h - 2 * u, cor);
+  // rabinho apontando para quem fala
+  const cx = Math.max(x + 6 * u, Math.min(x + w - 8 * u, Math.round(sx)));
+  R(ctx, cx - u, y + h - u, 3 * u, u, cor);
+  R(ctx, cx - 2 * u, y + h - u, u, 2 * u, C.contorno); R(ctx, cx + 2 * u, y + h - u, u, u, C.contorno);
+  R(ctx, cx - u, y + h, 2 * u, u, cor); R(ctx, cx + u, y + h, u, 2 * u, C.contorno);
+  R(ctx, cx - u, y + h + u, u, u, cor); R(ctx, cx, y + h + u, u, 2 * u, C.contorno); R(ctx, cx - u, y + h + 2 * u, u, u, C.contorno);
+  // etiqueta com o nome
+  if (nome) {
+    const nw = (measure(nome) + 8) * u;
+    R(ctx, x + 3 * u, y - tagH + u, nw, tagH, C.contorno);
+    drawText(ctx, nome, x + 7 * u, y - tagH + u, u, C.uiDestaque);
+  }
+  // texto
+  let resta = Math.floor(mostrado);
+  linhas.forEach((l, i) => {
+    if (resta <= 0) return;
+    drawText(ctx, l.slice(0, resta), x + 5 * u, y + (i * (LINE_H - 1) + 2) * u, u, C.contorno);
+    resta -= l.length + 1;
+  });
+  if (seta && Math.floor(t / 350) % 2) {
+    const ax = x + w - 9 * u, ay = y + h - 6 * u;
+    R(ctx, ax, ay, 5 * u, u, C.bordo); R(ctx, ax + u, ay + u, 3 * u, u, C.bordo); R(ctx, ax + 2 * u, ay + 2 * u, u, u, C.bordo);
+  }
 }
 
 export { drawText, measure, wrap, LINE_H };

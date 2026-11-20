@@ -7,7 +7,7 @@ O jogo envia só quatro coisas: o nome digitado, a resposta (Tô dentro, Vou ten
 1. Abra a planilha que vai receber as respostas.
 2. Vá em **Extensões > Apps Script**.
 3. Apague o conteúdo do arquivo `Código.gs` e cole o conteúdo de `Codigo.gs` desta pasta.
-4. Na linha `const CHAVE_GALERIA = 'TROQUE-ESTA-CHAVE';`, troque o texto por uma senha só sua (letras e números). Salve.
+4. Na linha `const CHAVE_GALERIA = 'TROQUE-ESTA-CHAVE';` (linha 8), troque o texto por uma senha só sua, com pelo menos 6 letras ou números. É o único lugar a mudar. Salve.
 5. Clique em **Implantar > Nova implantação**.
 6. Em "Tipo", escolha **App da Web** e configure:
    - Executar como: **Eu**

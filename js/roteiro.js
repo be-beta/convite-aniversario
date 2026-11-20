@@ -248,6 +248,9 @@ async function falarBernardo(j) {
       'Agora não, {nome}... tô vendo o trailer pela décima vez.',
       'Shhh. Olha esse pôr do sol. É de mentira, mas olha.',
       'Treze anos, {nome}. Treze.',
+      'Shhh, {nome}. O Alanzoka tá no meio de uma perseguição.',
+      'Peraí, o Alanzoka vai pular do prédio. De novo.',
+      'Só mais um vídeo do Alanzoka e eu volto. Juro.',
     ]));
     await j.narra('Ele nem tirou o olho do celular. Perfeito.');
     return;
@@ -274,6 +277,7 @@ async function falarBernardo(j) {
       await j.voce('E aí, já viu o GTA 6?');
       await j.fala('bernardo', 'GTA 6?! {nome}. Eu esperei TREZE ANOS por isso.');
       await j.fala('bernardo', 'Você viu o mapa? A praia? Eu vou zerar na primeira semana. Mentira, vou levar um ano.');
+      await j.fala('bernardo', 'Ontem fiquei até as três da manhã vendo o Alanzoka jogar. Hoje vou ver de novo.');
       f.distraido = true;
       copoBernardo(j);
       await j.narra('Bernardo saca o celular e mergulha num vídeo de gameplay. Uma bateria de escola de samba poderia passar aqui agora.');
@@ -1083,7 +1087,7 @@ export const roteiro = {
         op.push(linhas[f.torcIdx]);
       }
       if (!f.dudaLivre && Math.abs(px - 347) < 140) op.push(sorteio([['juninho', 'E o trabalho?'], ['juninho', 'E a família?'], ['juninho', 'E o mestrado?'], ['duda', '...socorro']]));
-      if (f.distraido && !f.festa) op.push(['bernardo', sorteio(['Olha esse gráfico...', 'Treze anos!', 'Que mapa!'])]);
+      if (f.distraido && !f.festa) op.push(['bernardo', sorteio(['Olha esse gráfico...', 'Treze anos!', 'O Alanzoka gritou de novo. Clássico.', 'Calma, Alanzoka, é só um policial.', 'Live do Alanzoka começou. Ninguém fala comigo.', 'O Alanzoka levou um susto e eu também.', 'Esse carro vai explodir. Certeza.'])]);
       else if (f.copoSecou && !f.copoCheio) op.push(['bernardo', 'Cadê meu chopp?']);
       if (!f.renataoSumiu && E.renatao.cena === 'corredor' && Math.abs(px - E.renatao.x) < 120) op.push(['renatao', 'Galera, vou nessa!']);
       if (Math.random() < 0.3) op.push(['carlos', 'Já vai!']);
