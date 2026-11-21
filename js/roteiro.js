@@ -445,9 +445,17 @@ async function pedirComida(j) {
 async function ofertaSerjao(j) {
   const f = j.f, s = j.ent.serjao, p = j.jogador;
   f.serjaoOfereceu = true;
-  j.balao('serjao', 'Ô, você aí!', 1500);
+  await j.destaque(s, { ms: 500 });
+  j.balao('serjao', 'Ô, você aí!', 1800);
+  await j.espera(1100);
+  j.fimDestaque();
+  // os dois se encontram no meio do caminho, para ninguém ficar parado esperando
   const lado = p.x < s.x ? 1 : -1;
-  await j.andar(s, p.x + lado * 18, p.y);
+  const A = j.cena.andar;
+  const meio = Math.max(A.x0 + 20, Math.min(A.x1 - 20, Math.abs(s.x - p.x) > 60 ? (p.x + s.x) / 2 : p.x));
+  s.vel = 60;
+  await Promise.all([j.andar(p, meio - lado * 9, p.y), j.andar(s, meio + lado * 9, p.y)]);
+  s.vel = 38;
   j.olhar(s, p); j.olhar(p, s);
   await j.fala('serjao', 'Chegou mais um! Não sei seu nome, mas aqui todo mundo é de casa. Vai uma cachaça? É por conta da casa.');
   const r = await j.escolha([
@@ -778,6 +786,7 @@ async function parabens(j) {
   j.foco = E.bernardo;
   j.camCentro = 270;
   j.camX = j.alvoCamera();
+  j.cinemaAlvo = 1; j.cinema = 1;
   await j.fade(0, 500);
   j.balao('alinne', 'Bernardo! Olha pra cá!', 1800);
   await j.espera(1500);
@@ -806,6 +815,7 @@ async function parabens(j) {
   await j.fala('serjao', 'Rodada de cachaça por conta da casa! Da minha casa!');
   await j.narra('Caramelo comeu um pedaço da polenta. Ninguém viu. Todo mundo viu.');
   await j.fade(1, 600);
+  j.cinemaAlvo = 0; j.cinema = 0;
   j.tela = 'convite';
   j.convite = { etapa: 'pergunta' };
   await j.fade(0, 500);
@@ -932,10 +942,7 @@ export const roteiro = {
       const [x, y] = lista[f.renataoHop % lista.length];
       R.cena = cena; R.x = x; R.y = y; R.face = -1; R.alvo = null;
       f.renataoVisto = false;
-      setTimeout(() => {
-        j.balao('jogador', 'Ué, não tinha ido embora?', 2200, true);
-        setTimeout(() => j.balao('renatao', sorteio(['Encontrei um conhecido.', 'Saideira. A última. Juro.', 'Tô indo! Só mais esse.']), 2400), 1300);
-      }, 700);
+      f.renataoAparece = true;
     }
   },
 
@@ -947,21 +954,54 @@ export const roteiro = {
     f.tJogo = (f.tJogo || 0) + dt;
 
     // polenta fica pronta
-    if (f.polentaPedida && !f.polentaChegou && j.t - f.polentaT > 16000 && j.n.interacoes > f.polentaN) {
+    if (livre && f.polentaPedida && !f.polentaChegou && j.t - f.polentaT > 16000 && j.n.interacoes > f.polentaN) {
       f.polentaChegou = true;
       sfx.copo();
-      if (j.cenaAtual === 'corredor') j.balao('carlos', 'Polenta na mesa 18, campeão!', 2600);
-      else j.aviso('A polenta chegou na mesa 18', 'pegar');
+      if (j.cenaAtual === 'corredor' && E.carlos.cena === 'corredor') {
+        j.rodar(async () => {
+          const c = E.carlos;
+          await j.destaque(c, { ms: 550 });
+          j.balao('carlos', 'Polenta na mesa 18, campeão!', 2400);
+          await j.espera(2200);
+        });
+        return;
+      }
+      j.aviso('A polenta chegou na mesa 18', 'pegar');
     }
-    // Léo volta de "ali"
-    if (f.leoSumiu && !f.leoVoltou && j.t - f.leoT > 22000) {
+    // Léo volta de "ali" (só quando você está na calçada para ver)
+    if (livre && f.leoSumiu && !f.leoVoltou && j.t - f.leoT > 22000 && j.cenaAtual === 'calcada') {
       f.leoVoltou = true;
-      const L = E.leo;
-      L.visivel = true; L.x = 132; L.y = 178; L.face = 1; L.alvo = null;
-      if (j.cenaAtual === 'calcada') j.balao('leo', 'Voltei. Perdi alguma coisa?', 2400);
+      j.rodar(async () => {
+        const L = E.leo;
+        L.visivel = true; L.x = 396; L.y = 186; L.face = -1; L.alvo = null; L.vel = 60;
+        await j.destaque(L, { ms: 450 });
+        j.balao('leo', 'Voltei. Perdi alguma coisa?', 2600);
+        j.andar(L, 132, 178).then((ok) => { if (ok) L.face = 1; });
+        await j.espera(1700);
+      });
+      return;
     }
     // copo do Bernardo seca
-    if (f.missao && !f.copoSecou && !f.copoCheio && j.t - f.missaoT > 25000) { f.copoSecou = true; copoBernardo(j); }
+    if (f.missao && !f.copoSecou && !f.copoCheio && j.t - f.missaoT > 25000) {
+      f.copoSecou = true;
+      copoBernardo(j);
+      if (j.cenaAtual === 'corredor' && !f.distraido) j.balao('bernardo', 'Ih, meu chopp acabou.', 2600, false, true);
+    }
+    // Renatão reaparece onde você está
+    if (livre && f.renataoAparece) {
+      f.renataoAparece = false;
+      const R = E.renatao;
+      if (R.cena === j.cenaAtual) {
+        j.rodar(async () => {
+          await j.destaque(R, { ms: 600 });
+          j.balao('jogador', 'Ué, não tinha ido embora?', 2200, true);
+          await j.espera(1500);
+          j.balao('renatao', sorteio(['Encontrei um conhecido.', 'Saideira. A última. Juro.', 'Tô indo! Só mais esse.']), 2400);
+          await j.espera(2000);
+        });
+        return;
+      }
+    }
     // vontade de ir ao banheiro
     if (livre && !f.vontade && !f.wc && j.cenaAtual === 'corredor' &&
       ((f.bebeuT && j.t - f.bebeuT > 9000) || f.tCorredor > 130000)) {
@@ -975,22 +1015,37 @@ export const roteiro = {
       return;
     }
     // Alinne vai atrás do Caramelo
-    if (livre && f.missao && !f.alinneSaiu && progresso(f) >= 2 && j.cenaAtual === 'corredor') {
-      f.alinneSaiu = true;
+    if (livre && f.missao && !f.alinneSaindo && progresso(f) >= 2 && j.cenaAtual === 'corredor') {
+      f.alinneSaindo = true;
       f.alinneSaiuT = j.t;
       j.rodar(async () => {
-        const A = E.alinne;
+        const A = E.alinne, C2 = E.caramelo;
         sfx.latido();
-        await j.espera(500);
-        j.balao('alinne', 'Esse latido... É O CARAMELO!', 2000);
-        await j.espera(1600);
-        j.foco = A;
-        A.vel = 70;
+        await j.destaque(A, { ms: 800 });
+        await j.fala('alinne', 'Esse latido... É O CARAMELO!');
+        A.vel = 100;
         await j.andar(A, 4, 182);
-        A.cena = 'calcada'; A.x = 222; A.y = 188; A.face = 1; A.pose = 'agachada';
-        const C2 = E.caramelo;
-        C2.alvo = null; C2.chegou = null; C2.x = 246; C2.y = 188; C2.face = -1; C2.pose = 'senta';
-        j.foco = null;
+        // corte rápido para a calçada, para ninguém perder o que aconteceu
+        setLugar('rua');
+        await j.espiar('calcada', async () => {
+          j.parar(C2);
+          C2.x = 250; C2.y = 188; C2.face = -1; C2.pose = 'senta';
+          A.cena = 'calcada'; A.x = 286; A.y = 182; A.face = -1; A.pose = null;
+          j.ator(C2); j.ator(A);
+          j.foco = A;
+          j.legenda = 'Enquanto isso, na calçada...';
+          await j.espera(400);
+          await j.andar(A, 224, 188);
+          A.face = 1; A.pose = 'agachada';
+          C2.pose = 'feliz';
+          sfx.latido();
+          j.balao('alinne', 'Quem é o bebê mais lindo dessa calçada?', 2600);
+          await j.espera(2600);
+          C2.pose = 'senta';
+          j.legenda = null;
+        });
+        setLugar('bar');
+        f.alinneSaiu = true;
         j.aviso('A Alinne foi atrás do Caramelo', 'ir');
       });
       return;
@@ -1002,7 +1057,10 @@ export const roteiro = {
         f.carameloTentou = true;
         j.rodar(async () => {
           C2.pose = null;
+          await j.destaque(C2, { ms: 400 });
+          C2.vel = 60;
           await j.andar(C2, p.x + (p.x < C2.x ? 16 : -16), p.y + 1);
+          C2.vel = 28;
           j.olhar(C2, p);
           C2.pose = 'pede';
           sfx.latido();
@@ -1039,7 +1097,7 @@ export const roteiro = {
 
   copos(j, dt) {
     const f = j.f, E = j.ent;
-    if (f.festa) return;
+    if (f.festa || j.atores) return;
     const BEBEDORES = ['rafa', 'beto', 'guto', 'renatao', 'f2', 'f5', 'duda'];
     for (const id of [...BEBEDORES, 'jogador']) {
       const e = E[id];

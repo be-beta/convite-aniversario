@@ -22,6 +22,18 @@ const PLUMBOB = [
   '..oDo..',
   '...o...',
 ];
+// Exclamação que aparece sobre quem começa um acontecimento
+const EXCLAMA = [
+  '.ooo.',
+  'oYYYo',
+  'oYYYo',
+  '.oYo.',
+  '.oYo.',
+  '..o..',
+  '.ooo.',
+  '.oYo.',
+  '.ooo.',
+];
 const agora = () => performance.now();
 
 export class Ent {
@@ -66,6 +78,11 @@ export class Jogo {
     this.fadeAlvo = 0;
     this.fadeRes = null;
     this.foco = null;
+    this.cinema = 0;             // 0 a 1: faixas de cinema e holofote dos acontecimentos
+    this.cinemaAlvo = 0;
+    this.atores = null;          // durante um acontecimento, só estes se mexem
+    this.alerta = null;
+    this.legenda = null;
     this.estado = {};
     this.hits = [];
     this.t = 0;
@@ -253,12 +270,59 @@ export class Jogo {
     d.res(d.opcoes[i].v);
   }
 
-  balao(quem, texto, ms = 2800, pensa = false) {
+  balao(quem, texto, ms = 2800, pensa = false, importante = false) {
     const e = this.ent[quem];
     if (!e) return;
     e.balaoTxt = this.fmt(texto);
     e.balaoAte = this.t + ms;
     e.pensa = pensa;
+    e.balaoImp = importante;
+  }
+
+  // Acontecimento: faixas de cinema, "!" sobre quem age, câmera até lá e o resto congelado.
+  // Termina sozinho no fim do rodar(), ou antes com fimDestaque().
+  async destaque(quem, { congelar = true, ms = 700, legenda = null, som = true } = {}) {
+    const lista = [].concat(quem).map((q) => (typeof q === 'string' ? this.ent[q] : q)).filter(Boolean);
+    const foco = lista[0];
+    if (this.jogador) { this.parar(this.jogador); lista.push(this.jogador); }
+    this.cinemaAlvo = 1;
+    this.legenda = legenda;
+    this.atores = congelar ? new Set(lista) : null;
+    if (foco) { this.foco = foco; this.alerta = { e: foco, desde: this.t }; }
+    if (som) sfx.alerta();
+    await this.espera(ms);
+  }
+
+  ator(e) {
+    if (typeof e === 'string') e = this.ent[e];
+    if (this.atores && e) this.atores.add(e);
+  }
+
+  fimDestaque() {
+    this.cinemaAlvo = 0;
+    this.atores = null;
+    this.alerta = null;
+    this.legenda = null;
+    this.foco = null;
+  }
+
+  // Mostra por um instante outra cena (sem levar o jogador) e volta.
+  async espiar(cena, fn) {
+    const volta = this.cenaAtual;
+    await this.fade(1, 260);
+    this.cenaAtual = cena;
+    this.baloesLivres = [];
+    this.camX = this.alvoCamera();
+    await this.fade(0, 260);
+    try {
+      await fn(this);
+    } finally {
+      await this.fade(1, 260);
+      this.cenaAtual = volta;
+      this.foco = null;
+      this.camX = this.alvoCamera();
+      await this.fade(0, 260);
+    }
   }
 
   balaoEm(cena, x, y, texto, ms = 2600) {
@@ -303,7 +367,7 @@ export class Jogo {
       .finally(() => {
         this.ocupado = false;
         this.dialogo = null;
-        this.foco = null;
+        this.fimDestaque();
         this.n.interacoes++;
       });
   }
@@ -458,6 +522,7 @@ export class Jogo {
   atualizar(dt) {
     this.t += dt;
     for (const e of Object.values(this.ent)) {
+      if (this.atores && !this.atores.has(e)) continue; // congelado durante um acontecimento
       e.t += dt;
       if (e.alvo) {
         const dx = e.alvo.x - e.x, dy = e.alvo.y - e.y;
@@ -474,6 +539,10 @@ export class Jogo {
       }
       e.piscar -= dt;
       if (e.piscar < -130) e.piscar = 1800 + Math.random() * 3500;
+    }
+    if (this.cinema !== this.cinemaAlvo) {
+      const s = Math.sign(this.cinemaAlvo - this.cinema);
+      this.cinema = Math.max(0, Math.min(1, this.cinema + s * dt / 260));
     }
     // câmera
     if (this.tela === 'jogo' || this.tela === 'convite') {
@@ -662,6 +731,40 @@ export class Jogo {
     b.globalCompositeOperation = 'source-over';
     for (const p of this.particulas) { b.fillStyle = p.cor; b.fillRect(Math.round(p.x - cam), Math.round(p.y), p.w || 1, p.h || 2); }
 
+    // acontecimento: holofote em quem age e exclamação sobre a cabeça
+    if (this.cinema > 0.01 && this.tela === 'jogo') {
+      const fe = this.foco && this.foco.cena === this.cenaAtual && this.foco.visivel ? this.foco : null;
+      const cx = fe ? Math.round(fe.x) - cam : vw / 2;
+      const cy = fe ? Math.round(fe.y) - 22 : H / 2;
+      const gr = b.createRadialGradient(cx, cy, 26, cx, cy, Math.max(vw, H) * 0.8);
+      gr.addColorStop(0, 'rgba(12,6,10,0)');
+      gr.addColorStop(1, `rgba(12,6,10,${0.6 * this.cinema})`);
+      b.fillStyle = gr;
+      b.fillRect(0, 0, vw, H);
+    }
+    const al = this.alerta;
+    if (al && al.e.cena === this.cenaAtual && al.e.visivel && this.t - al.desde < 1800) {
+      const e = al.e, k = this.t - al.desde;
+      const topo = e.sprite.dog ? Math.round(e.y) - 20 : Math.round(e.y + (e.dy || 0)) - GY + this.topoDoSprite(e.sprite);
+      const pulo = k < 90 ? 4 : k < 180 ? -1 : 0;
+      const dx = Math.round(e.x) - 2 - cam;
+      const dy = topo - 12 + pulo;
+      if (k < 1400 || Math.floor(k / 100) % 2) {
+        b.globalCompositeOperation = 'lighter';
+        b.globalAlpha = 0.4;
+        b.drawImage(glowSprite(8, '#ffd27a'), dx + 2 - 8, dy + 4 - 8);
+        b.globalAlpha = 1;
+        b.globalCompositeOperation = 'source-over';
+        const cores = { o: '#2b1810', Y: '#ffd27a' };
+        EXCLAMA.forEach((linha, yy) => {
+          for (let xx = 0; xx < linha.length; xx++) {
+            const c = cores[linha[xx]];
+            if (c) { b.fillStyle = c; b.fillRect(dx + xx, dy + yy, 1, 1); }
+          }
+        });
+      }
+    }
+
     const r = this.sceneRect;
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(this.buf, r.x, r.y, r.w, r.h);
@@ -715,11 +818,28 @@ export class Jogo {
       drawText(ctx, 'A NOITE DO BERNARDO', a.x + a.w / 2, a.y + 4 * u, u, '#7a5a4c', null, 'center');
     }
 
+    // faixas de cinema durante um acontecimento
+    if (this.cinema > 0.01) {
+      // em cima mais grossa; embaixo fina, para não cortar os pés de quem está na frente
+      const topo = Math.round(12 * this.S * this.cinema);
+      const base = Math.round(Math.max(this.legenda ? 11 * u / this.S : 0, 6) * this.S * this.cinema);
+      R(ctx, lim.x, sr.y, lim.w, topo, '#0c0608');
+      R(ctx, lim.x, sr.y + sr.h - base, lim.w, base, '#0c0608');
+      if (this.legenda && this.cinema > 0.95) {
+        drawText(ctx, this.legenda, lim.x + lim.w / 2, sr.y + sr.h - base + Math.round((base - 8 * u) / 2), u, C.creme, null, 'center');
+      }
+    }
+
     // balões
     for (const e of Object.values(this.ent)) {
       if (this.dialogo || e.cena !== this.cenaAtual || !e.visivel || !e.balaoTxt || e.balaoAte < this.t) continue;
+      if (this.atores && !this.atores.has(e)) continue;
       const topo = e.sprite.dog ? e.y - 18 : e.y - (GY - e.sprite.frames.idle0.meta.head.y) - 1;
       const p = this.mundoParaTela(e.x, topo);
+      // fala importante de alguém fora da tela: plaquinha na borda apontando para onde ele está
+      const fora = p.x < lim.x + 6 * u ? -1 : p.x > lim.x + lim.w - 6 * u ? 1 : 0;
+      if (e.balaoImp && fora) { this.placaFora(e, fora, lim, sr, p.y); continue; }
+      if (fora && !this.atores && Math.abs(p.x - (fora < 0 ? lim.x : lim.x + lim.w)) > 30 * u) continue; // conversa de fundo de quem nem aparece
       balao(ctx, p.x, p.y, e.balaoTxt, u, lim, { pensamento: e.pensa });
     }
     for (const bl of this.baloesLivres) {
@@ -849,6 +969,30 @@ export class Jogo {
     const r = this.sceneRect;
     if (p.x < r.x + 4 * this.u || p.x > r.x + r.w - 4 * this.u) return null;
     return e;
+  }
+
+  placaFora(e, dir, lim, sr, sy) {
+    const ctx = this.ctx, u = this.u;
+    const txt = e.nome || '';
+    const w = (measure(txt) + 14) * u, h = 15 * u;
+    const y = Math.round(Math.max(sr.y + 40 * u, Math.min(sr.y + sr.h - 30 * u, sy)));
+    const x = dir < 0 ? lim.x + 20 * u : lim.x + lim.w - w - 20 * u; // ao lado da seta de andar
+    painel(ctx, x, y, w, h, u, { fundo: '#3a2722' });
+    const cor = Math.floor(this.t / 320) % 2 ? C.uiDestaque : C.creme;
+    const ax = dir < 0 ? x + 3 * u : x + w - 4 * u;
+    const cy = y + 7 * u;
+    for (let i = 0; i < 3; i++) R(ctx, ax - dir * i * u, cy - i * u, u, (2 * i + 1) * u, cor);
+    drawText(ctx, txt, dir < 0 ? x + 8 * u : x + 4 * u, y + 2 * u, u, C.uiTexto);
+    balao(ctx, x + w / 2, y + u, e.balaoTxt, u, lim, { pensamento: e.pensa });
+    if (!this.ocupado && !this.dialogo && this.jogador) {
+      this.hit({ x: x - 2 * u, y: y - 4 * u, w: w + 4 * u, h: h + 8 * u }, () => {
+        const A = this.cena.andar, p = this.jogador;
+        const tx = Math.max(A.x0, Math.min(A.x1, e.x - dir * 20));
+        this.pendente = null;
+        this.andar(p, tx, p.y);
+        this.marcaToque = { x: tx, y: p.y, ate: this.t + 400 };
+      });
+    }
   }
 
   cabecalho(quem) {

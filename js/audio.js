@@ -108,6 +108,7 @@ export const sfx = {
       ruido(0.1, { vol: 0.1, freq: 900, q: 2, atraso: i * 0.2 });
     }
   },
+  alerta() { tom(988, 0.07, { vol: 0.05 }); tom(1319, 0.16, { vol: 0.05, atraso: 0.08 }); },
   moedas() { [2637, 3136, 2794, 3520, 2960].forEach((n, i) => tom(n, 0.14, { vol: 0.03, atraso: i * 0.09 })); },
   item() { [523, 659, 784, 1047].forEach((n, i) => tom(n, 0.1, { vol: 0.05, atraso: i * 0.06 })); },
   missao() { [392, 523, 659, 784, 659, 784].forEach((n, i) => tom(n, 0.12, { vol: 0.05, atraso: i * 0.08 })); },
