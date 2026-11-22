@@ -29,7 +29,7 @@ Para testes, `http://localhost:8123/?teste=1` pula as telas iniciais e vai diret
 As respostas vão para uma planilha Google sua, junto com um código curto do personagem que cada convidado montou. Veja `apps-script/README.md`.
 Enquanto `RSVP_URL` estiver vazio em `js/config.js`, o jogo funciona em modo de teste e não envia nada.
 
-A página `galeria.html` mostra todos os personagens criados. Ela só exibe algo com a chave definida no Apps Script.
+A página `galeria.html` mostra todos os personagens criados. Ela só exibe algo com a chave definida no Apps Script. Quem montou o personagem e ainda não chegou ao fim aparece como "Não finalizou".
 
 ## Cardápio
 

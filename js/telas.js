@@ -5,7 +5,7 @@ import { C } from './paleta.js';
 import { CRIADOR, selecaoAleatoria, montarLook, campoDoCriador, codigoDoPersonagem } from './personagens.js';
 import { buildCharacter, frameCanvas } from './sprites.js';
 import { FESTA } from './config.js';
-import { enviarRSVP } from './rsvp.js';
+import { enviarRSVP, avisarInicio, ehNomeTeste } from './rsvp.js';
 import { iniciarSom } from './audio.js';
 import { CARDAPIO, FONTE_CARDAPIO } from './cardapio.js';
 
@@ -330,6 +330,8 @@ function telaCriador(j, ctx, t) {
         j.iniciando = true;
         j.dados.look = montarLook(cr.sel);
         j.dados.codigo = codigoDoPersonagem(cr.sel);
+        const ch = j.dados.chegada;
+        avisarInicio({ nome: j.dados.nome, chegada: ch ? `${ch.t} (previsão ${ch.carioca})` : '', personagem: j.dados.codigo });
         await j.fade(1, 400);
         j.roteiro.comecar(j);
       });
@@ -373,9 +375,7 @@ function telaConvite(j, ctx) {
     cv.chave = chave;
     cv.status = 'enviando';
     j.dados.resposta = chave;
-    // nomes de teste não vão para a planilha (para testar o jogo sem registrar)
-    const ehTeste = /^(test|teste)$/i.test((j.dados.nome || '').trim());
-    cv.status = ehTeste ? 'teste' : await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})`, personagem: j.dados.codigo || '' });
+    cv.status = ehNomeTeste(j.dados.nome) ? 'teste' : await enviarRSVP({ nome: j.dados.nome, resposta: RESPOSTAS[chave].rotulo, chegada: `${ch.t} (previsão ${ch.carioca})`, personagem: j.dados.codigo || '' });
   };
   if (cv.etapa === 'pergunta') {
     coluna(j, ctx, 250, [

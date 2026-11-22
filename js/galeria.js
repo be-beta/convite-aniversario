@@ -4,11 +4,30 @@ import { RSVP_URL } from './config.js';
 import { montarLook, selecaoDoCodigo } from './personagens.js';
 import { buildCharacter, frameCanvas } from './sprites.js';
 import { drawText, wrap } from './font.js';
+import { RESPOSTA_INICIO, SUFIXO_INICIO } from './rsvp.js';
 
 const $ = (id) => document.getElementById(id);
 const CHAVE_LOCAL = 'noite-galeria-chave';
-const ORDEM = { 'Tô dentro': 0, 'Vou tentar': 1, 'Não vai': 2 };
-const COR = { 'Tô dentro': '#7ad06a', 'Vou tentar': '#ffd27a', 'Não vai': '#ff8a7a' };
+const ORDEM = { 'Tô dentro': 0, 'Vou tentar': 1, 'Não vai': 2, [RESPOSTA_INICIO]: 3 };
+const COR = { 'Tô dentro': '#7ad06a', 'Vou tentar': '#ffd27a', 'Não vai': '#ff8a7a', [RESPOSTA_INICIO]: '#9fb4c8' };
+
+// Quem montou o personagem mas ainda não respondeu aparece como "Não finalizou".
+// Se a mesma pessoa já respondeu de verdade, a linha de início some.
+const chaveNome = (nome) => String(nome).replace(SUFIXO_INICIO, '').trim().toLowerCase();
+function juntar(pessoas) {
+  const ehInicio = (p) => p.resposta === RESPOSTA_INICIO || String(p.nome).endsWith(SUFIXO_INICIO);
+  const responderam = new Set(pessoas.filter((p) => !ehInicio(p)).map((p) => chaveNome(p.nome)));
+  const vistos = new Set();
+  const out = [];
+  for (const p of pessoas) {
+    if (!ehInicio(p)) { out.push(p); continue; }
+    const k = chaveNome(p.nome);
+    if (responderam.has(k) || vistos.has(k)) continue;
+    vistos.add(k);
+    out.push({ ...p, nome: String(p.nome).replace(SUFIXO_INICIO, '').trim(), resposta: RESPOSTA_INICIO });
+  }
+  return out;
+}
 
 $('chave').value = localStorage.getItem(CHAVE_LOCAL) || '';
 
@@ -43,12 +62,13 @@ $('botao-colar').addEventListener('click', () => {
   mostrar(pessoas);
 });
 
-function mostrar(pessoas) {
+function mostrar(lista) {
+  const pessoas = juntar(lista);
   pessoas.sort((a, b) => (ORDEM[a.resposta] ?? 3) - (ORDEM[b.resposta] ?? 3) || a.nome.localeCompare(b.nome));
   const conta = (r) => pessoas.filter((p) => p.resposta === r).length;
   $('msg').textContent = pessoas.length ? '' : 'Ninguém respondeu ainda.';
   $('resumo').textContent = pessoas.length
-    ? `Tô dentro: ${conta('Tô dentro')} · Vou tentar: ${conta('Vou tentar')} · Não vai: ${conta('Não vai')}`
+    ? `Tô dentro: ${conta('Tô dentro')} · Vou tentar: ${conta('Vou tentar')} · Não vai: ${conta('Não vai')} · Não finalizou: ${conta(RESPOSTA_INICIO)}`
     : '';
   const grade = $('grade');
   grade.innerHTML = '';
@@ -56,7 +76,7 @@ function mostrar(pessoas) {
 }
 
 function cartao(p) {
-  const W = 58, H = 92;
+  const W = 72, H = 92;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   c.title = p.nome;

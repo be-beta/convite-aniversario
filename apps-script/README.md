@@ -2,6 +2,8 @@
 
 O jogo envia só quatro coisas: o nome digitado, a resposta (Tô dentro, Vou tentar, Não vai), a previsão de chegada e um código curto do personagem montado.
 
+Assim que a pessoa termina de montar o personagem, o jogo manda uma linha a mais com o nome seguido de "(não finalizou)" e a resposta "Não finalizou". Assim dá para ver na galeria quem começou e não chegou ao fim. Essa linha nunca substitui uma resposta de verdade, e o Apps Script não precisa mudar.
+
 ## Como configurar (uns 5 minutos)
 
 1. Abra a planilha que vai receber as respostas.
